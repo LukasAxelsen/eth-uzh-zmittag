@@ -20,6 +20,13 @@ class MenuRegressionTests(unittest.TestCase):
     def setUp(self):
         menu._weekly_cache.clear()
 
+    def test_weekly_urls_encode_the_food2050_organisation_comma(self):
+        self.assertTrue(menu.UZH_WEEKLY_URLS)
+        for slug, url in menu.UZH_WEEKLY_URLS.items():
+            with self.subTest(slug=slug):
+                self.assertIn("%2C", url)
+                self.assertNotIn(",", url)
+
     def test_migrated_weekly_and_detail_pages(self):
         weekly = (FIXTURES / "uzh-weekly.html").read_text()
         detail = (FIXTURES / "uzh-detail.html").read_text()

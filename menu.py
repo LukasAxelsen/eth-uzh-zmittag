@@ -135,16 +135,16 @@ UZH_LOCATIONS = {
 # "cityport/cityport"). Each entry was verified against the outlet page's
 # own /menu/weekly links.
 UZH_WEEKLY_URLS = {
-    "untere-mensa": "https://app.food2050.ch/de/zfv/universitat-zurich,campus-zentrum/untere-mensa/mittagsverpflegung/menu/weekly",
-    "obere-mensa": "https://app.food2050.ch/de/zfv/universitat-zurich,campus-zentrum/obere-mensa/mittagsverpflegung/menu/weekly",
-    "lichthof": "https://app.food2050.ch/de/zfv/universitat-zurich,campus-zentrum/lichthof/mittagsverpflegung/menu/weekly",
-    "mensa": "https://app.food2050.ch/de/zfv/universitat-zurich,campus-irchel/mensa/mittagsverpflegung/menu/weekly",
-    "green-kitchen": "https://app.food2050.ch/de/zfv/universitat-zurich,campus-irchel/green-kitchen-lab/mittagsverpflegung/menu/weekly",
-    "seerose": "https://app.food2050.ch/de/zfv/universitat-zurich,campus-irchel/seerose/mittag/menu/weekly",
-    "uzh-binzmuehle": "https://app.food2050.ch/de/zfv/universitat-zurich,campus-oerlikon/mensa-binzmuhle/mittagsverpflegung/menu/weekly",
-    "uzh-cityport": "https://app.food2050.ch/de/zfv/universitat-zurich,cityport/cityport/mittagsverpflegung/menu/weekly",
-    "tierspital": "https://app.food2050.ch/de/zfv/universitat-zurich,tierspital-1/tierspital/mittagsverpflegung/menu/weekly",
-    "uzh-botanischergarten": "https://app.food2050.ch/de/zfv/universitat-zurich,botanischer-garten/botanischer-garten/mittagsverpflegung/menu/weekly",
+    "untere-mensa": "https://app.food2050.ch/de/zfv/universitat-zurich%2Ccampus-zentrum/untere-mensa/mittagsverpflegung/menu/weekly",
+    "obere-mensa": "https://app.food2050.ch/de/zfv/universitat-zurich%2Ccampus-zentrum/obere-mensa/mittagsverpflegung/menu/weekly",
+    "lichthof": "https://app.food2050.ch/de/zfv/universitat-zurich%2Ccampus-zentrum/lichthof/mittagsverpflegung/menu/weekly",
+    "mensa": "https://app.food2050.ch/de/zfv/universitat-zurich%2Ccampus-irchel/mensa/mittagsverpflegung/menu/weekly",
+    "green-kitchen": "https://app.food2050.ch/de/zfv/universitat-zurich%2Ccampus-irchel/green-kitchen-lab/mittagsverpflegung/menu/weekly",
+    "seerose": "https://app.food2050.ch/de/zfv/universitat-zurich%2Ccampus-irchel/seerose/mittag/menu/weekly",
+    "uzh-binzmuehle": "https://app.food2050.ch/de/zfv/universitat-zurich%2Ccampus-oerlikon/mensa-binzmuhle/mittagsverpflegung/menu/weekly",
+    "uzh-cityport": "https://app.food2050.ch/de/zfv/universitat-zurich%2Ccityport/cityport/mittagsverpflegung/menu/weekly",
+    "tierspital": "https://app.food2050.ch/de/zfv/universitat-zurich%2Ctierspital-1/tierspital/mittagsverpflegung/menu/weekly",
+    "uzh-botanischergarten": "https://app.food2050.ch/de/zfv/universitat-zurich%2Cbotanischer-garten/botanischer-garten/mittagsverpflegung/menu/weekly",
 }
 
 # All nutrition rows the frontend table shows (fixed order)
