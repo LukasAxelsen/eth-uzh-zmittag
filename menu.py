@@ -6,15 +6,16 @@ and index.txt (plain text, for AI consumption).
 Sources:
   - ETH facilities: Cookpit REST API (public, no auth). One call returns all
     facilities; meals are filtered client-side via meal-times mapping.
-  - UZH outlets: Food2050 GraphQL API (public). Per-location call returns
-    kitchens + dish list; per-dish pages are scraped for nutrition (stats).
+  - UZH outlets: public Food2050 weekly and dish pages. Embedded page data
+    provides dated menus, nutrition, prices and photos.
 """
 import json
 import os
 import re
 import subprocess
 import time
-from datetime import timezone, timedelta, datetime
+from datetime import timedelta, datetime
+from zoneinfo import ZoneInfo
 
 # Pause before every HTTP request. Food2050 (app.food2050.ch) rate-limits
 # rapid bursts, so the pacing lives inside http_get/http_post and covers the
@@ -27,12 +28,12 @@ USER_AGENT = "Mozilla/5.0 (compatible; eth-uzh-zmittag/1.0)"
 # Config
 # --------------------------------------------------------------------------
 
-TODAY = datetime.now(timezone(timedelta(hours=2))).date().isoformat()
-
-
 def _current_date():
-    """Zurich-local today (used to decide whether todayOffer fallback applies)."""
-    return datetime.now(timezone(timedelta(hours=2))).date().isoformat()
+    """Zurich-local today, including summer/winter clock changes."""
+    return datetime.now(ZoneInfo("Europe/Zurich")).date().isoformat()
+
+
+TODAY = _current_date()
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 OUTPUT_DIR = os.path.join(BASE, "output")
@@ -134,16 +135,16 @@ UZH_LOCATIONS = {
 # "cityport/cityport"). Each entry was verified against the outlet page's
 # own /menu/weekly links.
 UZH_WEEKLY_URLS = {
-    "untere-mensa": "https://app.food2050.ch/de/v2/zfv/universitat-zurich,campus-zentrum/untere-mensa/mittagsverpflegung/menu/weekly",
-    "obere-mensa": "https://app.food2050.ch/de/v2/zfv/universitat-zurich,campus-zentrum/obere-mensa/mittagsverpflegung/menu/weekly",
-    "lichthof": "https://app.food2050.ch/de/v2/zfv/universitat-zurich,campus-zentrum/lichthof/mittagsverpflegung/menu/weekly",
-    "mensa": "https://app.food2050.ch/de/v2/zfv/universitat-zurich,campus-irchel/mensa/mittagsverpflegung/menu/weekly",
-    "green-kitchen": "https://app.food2050.ch/de/v2/zfv/universitat-zurich,campus-irchel/green-kitchen-lab/mittagsverpflegung/menu/weekly",
-    "seerose": "https://app.food2050.ch/de/v2/zfv/universitat-zurich,campus-irchel/seerose/mittag/menu/weekly",
-    "uzh-binzmuehle": "https://app.food2050.ch/de/v2/zfv/universitat-zurich,campus-oerlikon/mensa-binzmuhle/mittagsverpflegung/menu/weekly",
-    "uzh-cityport": "https://app.food2050.ch/de/v2/zfv/universitat-zurich,cityport/cityport/mittagsverpflegung/menu/weekly",
-    "tierspital": "https://app.food2050.ch/de/v2/zfv/universitat-zurich,tierspital-1/tierspital/mittagsverpflegung/menu/weekly",
-    "uzh-botanischergarten": "https://app.food2050.ch/de/v2/zfv/universitat-zurich,botanischer-garten/botanischer-garten/mittagsverpflegung/menu/weekly",
+    "untere-mensa": "https://app.food2050.ch/de/zfv/universitat-zurich,campus-zentrum/untere-mensa/mittagsverpflegung/menu/weekly",
+    "obere-mensa": "https://app.food2050.ch/de/zfv/universitat-zurich,campus-zentrum/obere-mensa/mittagsverpflegung/menu/weekly",
+    "lichthof": "https://app.food2050.ch/de/zfv/universitat-zurich,campus-zentrum/lichthof/mittagsverpflegung/menu/weekly",
+    "mensa": "https://app.food2050.ch/de/zfv/universitat-zurich,campus-irchel/mensa/mittagsverpflegung/menu/weekly",
+    "green-kitchen": "https://app.food2050.ch/de/zfv/universitat-zurich,campus-irchel/green-kitchen-lab/mittagsverpflegung/menu/weekly",
+    "seerose": "https://app.food2050.ch/de/zfv/universitat-zurich,campus-irchel/seerose/mittag/menu/weekly",
+    "uzh-binzmuehle": "https://app.food2050.ch/de/zfv/universitat-zurich,campus-oerlikon/mensa-binzmuhle/mittagsverpflegung/menu/weekly",
+    "uzh-cityport": "https://app.food2050.ch/de/zfv/universitat-zurich,cityport/cityport/mittagsverpflegung/menu/weekly",
+    "tierspital": "https://app.food2050.ch/de/zfv/universitat-zurich,tierspital-1/tierspital/mittagsverpflegung/menu/weekly",
+    "uzh-botanischergarten": "https://app.food2050.ch/de/zfv/universitat-zurich,botanischer-garten/botanischer-garten/mittagsverpflegung/menu/weekly",
 }
 
 # All nutrition rows the frontend table shows (fixed order)
@@ -238,6 +239,22 @@ def title_slug(line):
     return line
 
 
+def uzh_category_from_url(detail_url):
+    """Extract the category (line) segment from a Food2050 detail URL.
+
+    Detail URLs look like ``.../mittagsverpflegung,{meal},{category}/{date}``
+    (e.g. ``...,hauptspeisen,garden/2026-08-03``). The segment directly
+    before the trailing date is the category. Older URLs used ``unten`` as
+    the meal segment and some outlets use ``mittag`` — taking the last
+    path segment covers every variant, so the line survives even when the
+    JSON payload omits ``menuItem.category`` (which the detail page does).
+    """
+    m = re.search(r"/([^/]+)/(\d{4}-\d{2}-\d{2})$", detail_url or "")
+    seg = m.group(1) if m else ""
+    # The last path segment is comma-joined ("mittagsverpflegung,hauptspeisen,garden");
+    # the category is its final part.
+    return seg.rsplit(",", 1)[-1] if seg else ""
+
 def normalize_desc(desc):
     """Unify ingredient lists to ' | ' separators regardless of source style
     (ETH pipes, UZH commas, Tannenbar slashes)."""
@@ -281,13 +298,22 @@ def build_uzh_dish(name, line) -> dict:
     }
 
 
+def _uzh_named_dish(dish, line):
+    """New pages publish ingredients separately; old pages embed them in name."""
+    result = build_uzh_dish(dish.get("name", ""), line)
+    description = normalize_desc(dish.get("description") or "")
+    if description:
+        result["desc"] = description
+    return result
+
+
 def _curl(args, timeout=30):
     """Run curl and return stdout text, or '' after attempts with backoff."""
-    cmd = ["curl", "-s", "-A", USER_AGENT] + args
+    cmd = ["curl", "-fsSL", "--connect-timeout", "10", "-A", USER_AGENT] + args
     for attempt in range(2):
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-            if result.stdout:
+            if result.returncode == 0 and result.stdout:
                 return result.stdout
         except Exception:
             pass
@@ -460,13 +486,6 @@ def fmt_eth_time(ts):
 # UZH (Food2050)
 # --------------------------------------------------------------------------
 
-FOOD2050_QUERY = (
-    'query ExampleQuery($locationId: String!) { location(id: $locationId) { '
-    "kitchens { slug, todayOffer { digitalMenuItems { displayName "
-    "recipe { title(returnAll: true) } } } } } }"
-)
-
-
 def fetch_uzh():
     """Return list of {id, name, group, meals} for all UZH Food2050 outlets.
 
@@ -474,35 +493,12 @@ def fetch_uzh():
     (weekends, holidays, API hiccups) so the frontend renders it with
     its "no meals" notice instead of dropping it silently.
     """
-    is_today = TODAY == _current_date()
     result = []
-    for loc_id, (group, slug_names) in UZH_LOCATIONS.items():
-        # The GraphQL list API is only needed for the current day's
-        # todayOffer fallback; future dates are served purely via the
-        # weekly-page category templates, so skip the POST entirely.
-        by_slug = {}
-        if is_today:
-            body = json.dumps({
-                "query": FOOD2050_QUERY,
-                "variables": {"locationId": loc_id},
-                "operationName": "ExampleQuery",
-            })
-            data = http_post("https://api.app.food2050.ch/", body)
-            kitchens = (data.get("data") or {}).get("location") or {}
-            by_slug = {k.get("slug"): k for k in kitchens.get("kitchens") or []}
-
+    for group, slug_names in UZH_LOCATIONS.values():
         for slug, name in slug_names.items():
-            dishes = []
             # Weekly page for the current week; future dates via
             # category templates (see scrape_uzh_date).
             dishes = scrape_uzh_date(slug, TODAY)
-            # Fall back to the list API ONLY for the current day —
-            # for other dates the todayOffer is that day's data and
-            # would be wrong (it never applies to future dates).
-            if not dishes and is_today:
-                kitchen = by_slug.get(slug)
-                if kitchen is not None:
-                    dishes = uzh_dishes_from_list(kitchen.get("todayOffer") or [])
 
             # Opening hours: table + weekend rule (every UZH outlet is
             # closed Sat/Sun per the operator pages).
@@ -562,7 +558,8 @@ def scrape_uzh_weekly(slug):
         dish_name = (item.get("dish") or {}).get("name", "")
         if not clean_text(dish_name):
             continue
-        d = build_uzh_dish(dish_name, (item.get("category") or {}).get("name", ""))
+        cat = (item.get("category") or {}).get("name", "") or uzh_category_from_url(item.get("detailUrl", ""))
+        d = _uzh_named_dish(item.get("dish") or {}, cat)
         detail = scrape_uzh_detail(item.get("detailUrl"))
         d["photo"] = detail["photo"]
         d["price"] = detail["price"]
@@ -575,6 +572,74 @@ def scrape_uzh_weekly(slug):
 # category path segments found in the week's detailUrls (used to build
 # detail URLs for future dates). Cached across the multi-day loop.
 _weekly_cache = {}
+
+
+def _food2050_props(html):
+    """Decode public Pages Router or App Router page data without running JS.
+
+    App Router's Flight chunks contain JSON records and references to
+    shared objects. Join chunks before decoding and resolve data references.
+    """
+    legacy = re.search(r'<script\b[^>]*\bid="__NEXT_DATA__"[^>]*>(.*?)</script>', html, re.S)
+    if legacy:
+        try:
+            return json.loads(legacy.group(1))["props"]["pageProps"]
+        except (KeyError, ValueError, TypeError):
+            return {}
+
+    decoder = json.JSONDecoder()
+    chunks = []
+    for match in re.finditer(r'self\.__next_f\.push\(\s*', html):
+        try:
+            chunk, _ = decoder.raw_decode(html, match.end())
+            if isinstance(chunk, list) and len(chunk) == 2 and chunk[0] == 1 and isinstance(chunk[1], str):
+                chunks.append(chunk[1])
+        except ValueError:
+            continue
+    stream = ''.join(chunks)
+    records = {}
+    for match in re.finditer(r'(?:^|\n)([0-9a-f]+):', stream):
+        try:
+            records[match.group(1)], _ = decoder.raw_decode(stream, match.end())
+        except ValueError:
+            continue  # module/control records aren't menu JSON
+
+    def resolve(value, seen=frozenset()):
+        if isinstance(value, dict):
+            return {k: resolve(v, seen) for k, v in value.items()}
+        if isinstance(value, list):
+            return [resolve(v, seen) for v in value]
+        if not isinstance(value, str) or not re.fullmatch(r'\$[0-9a-f]+(?::[^:]+)*', value):
+            return value
+        if value in seen:
+            return None
+        path = value[1:].split(':')
+        target = records.get(path[0])
+        try:
+            for part in path[1:]:
+                if isinstance(target, list):
+                    target = target[3] if part == 'props' else target[int(part)]
+                else:
+                    target = target[part]
+        except (KeyError, IndexError, ValueError, TypeError):
+            return None
+        return resolve(target, seen | {value})
+
+    for value in records.values():
+        if isinstance(value, list) and len(value) == 4 and isinstance(value[3], dict):
+            props = value[3]
+            if 'outlet' in props or 'menuItem' in props:
+                return resolve(props)
+    return {}
+
+
+def _food2050_outlet(props):
+    return props.get("outlet") or (props.get("organisation") or {}).get("outlet") or {}
+
+
+def _food2050_menu_item(html):
+    props = _food2050_props(html)
+    return props.get("menuItem") or (_food2050_outlet(props).get("menuCategory") or {}).get("menuItem") or {}
 
 
 def _load_uzh_weekly(slug):
@@ -590,14 +655,8 @@ def _load_uzh_weekly(slug):
         _weekly_cache[slug] = None
         return None
 
-    html = http_get(url)
-    m = re.search(r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>', html)
-    if not m:
-        _weekly_cache[slug] = None
-        return None
     try:
-        data = json.loads(m.group(1))
-        outlet = data["props"]["pageProps"]["organisation"]["outlet"]
+        outlet = _food2050_outlet(_food2050_props(http_get(url)))
         calendar = (outlet.get("menuCategory") or {}).get("calendar")
         if calendar is None:
             calendar = outlet.get("calendar")  # some outlets render it at outlet level
@@ -660,7 +719,8 @@ def scrape_uzh_date(slug, date):
             dish_name = (item.get("dish") or {}).get("name", "")
             if not clean_text(dish_name):
                 continue
-            d = build_uzh_dish(dish_name, (item.get("category") or {}).get("name", ""))
+            cat = (item.get("category") or {}).get("name", "") or uzh_category_from_url(item.get("detailUrl", ""))
+            d = _uzh_named_dish(item.get("dish") or {}, cat)
             detail = scrape_uzh_detail(item.get("detailUrl"))
             d["photo"] = detail["photo"]
             d["price"] = detail["price"]
@@ -696,17 +756,10 @@ def build_uzh_dish_from_detail(detail_url):
 
     Returns None when the detail page has no dish for that URL/date.
     """
-    html = http_get(detail_url)
-    m = re.search(r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>', html)
-    if not m:
+    if not detail_url:
         return None
-    try:
-        data = json.loads(m.group(1))
-        outlet = data["props"]["pageProps"]["organisation"]["outlet"]
-        menu_item = (outlet.get("menuCategory") or {}).get("menuItem") or {}
-        dish = menu_item.get("dish") or {}
-    except (KeyError, ValueError, TypeError):
-        return None
+    menu_item = _food2050_menu_item(http_get(detail_url))
+    dish = menu_item.get("dish") or {}
     dish_name = dish.get("name", "")
     if not clean_text(dish_name):
         return None
@@ -715,13 +768,17 @@ def build_uzh_dish_from_detail(detail_url):
     # {cat}/{date}, seerose: .../mittag,{cat}/{date}). Recover it from
     # the last path segment before the date, restoring hyphens that
     # stand in for spaces ("voll-anders" -> "voll anders").
-    category = (menu_item.get("category") or {}).get("name", "")
-    if not category:
-        m = re.search(r"([^/,]+)/\d{4}-\d{2}-\d{2}$", detail_url)
-        if m:
-            category = m.group(1).replace("-", " ")
-    d = build_uzh_dish(dish_name, category)
-    d["photo"] = clean_text(dish.get("imageUrl"))
+    category = ((menu_item.get("category") or {}).get("name", "") or
+                uzh_category_from_url(detail_url)).replace("-", " ")
+    d = _uzh_named_dish(dish, category)
+    d.update(_uzh_item_facts(menu_item))
+    return d
+
+
+def _uzh_item_facts(menu_item):
+    """A complete detail shape, even when optional name/stats/price are absent."""
+    dish = menu_item.get("dish") or {}
+    d = {"photo": clean_text(dish.get("imageUrl"))}
     # Prices live on the menuItem (not the dish) — same shape as
     # scrape_uzh_detail returns.
     prices = []
@@ -757,58 +814,9 @@ def build_uzh_dish_from_detail(detail_url):
 
 
 def scrape_uzh_detail(detail_url):
-    """Fetch one Food2050 dish page: nutrition stats + dish photo.
-
-    Returns {"nutrition": {"p100": …, "total": …}, "photo": url-or-""}.
-    """
-    html = http_get(detail_url)
-    m = re.search(r'<script id="__NEXT_DATA__" type="application/json">(.*?)</script>', html)
-    if not m:
-        return {"nutrition": {"p100": {}, "total": {}}, "photo": ""}
-    try:
-        data = json.loads(m.group(1))
-        dish = data["props"]["pageProps"]["organisation"]["outlet"]["menuCategory"]["menuItem"]["dish"]
-        stats = dish["stats"]
-    except (KeyError, ValueError, TypeError):
-        return {"nutrition": {"p100": {}, "total": {}}, "photo": ""}
-
-    p100, total = {}, {}
-    for key, label in UZH_NUTRIENT_MAP.items():
-        v = stats.get(key)
-        if not isinstance(v, dict):
-            continue
-        per100 = _num(v.get("amountPer100g"))
-        if per100 is not None:
-            p100[label] = round(per100, 1)
-        amount = _keep_number(v.get("amount"))
-        if amount is not None:
-            total[label] = amount
-
-    # servingWeight belongs to total only (contract: weight never in p100)
-    sw = stats.get("servingWeight")
-    if isinstance(sw, dict):
-        weight = _keep_number(sw.get("amount"))
-        if weight is not None:
-            total["weight"] = weight
-
-    # Prices: menuItem.prices -> [{label, value}] (Food2050 category names)
-    prices = []
-    for p in (data["props"]["pageProps"]["organisation"]["outlet"]
-              ["menuCategory"]["menuItem"].get("prices") or []):
-        amount = _num(p.get("amount"))
-        if amount is None:
-            continue
-        cat = (p.get("priceCategory") or {}).get("name", "")
-        prices.append({
-            "label": UZH_PRICE_LABELS.get(cat, cat.upper() or "CHF"),
-            "value": amount,
-        })
-
-    return {
-        "nutrition": {"p100": p100, "total": total},
-        "photo": clean_text(dish.get("imageUrl")),
-        "price": prices,
-    }
+    """Fetch one dish's nutrition, photo and prices with a complete empty shape."""
+    item = _food2050_menu_item(http_get(detail_url)) if detail_url else {}
+    return _uzh_item_facts(item)
 
 
 # --------------------------------------------------------------------------
@@ -876,6 +884,7 @@ def render_txt(mensas):
 
 def main():
     global TODAY  # the multi-date loop swaps the module-level date
+    TODAY = _current_date()
     os.makedirs(OUTPUT_DIR, exist_ok=True)
 
     # Calendar data window: today + the next 14 calendar days. Weekends
@@ -906,7 +915,9 @@ def main():
     payload = {
         "date": TODAY,
         "days": days,
-        "availableDates": sorted(days.keys()),
+        "availableDates": sorted(d for d, day in days.items() if any(
+            m["meals"]["Lunch"] or m["meals"]["Dinner"] for m in day["mensas"]
+        )),
     }
     with open(os.path.join(OUTPUT_DIR, "data.json"), "w") as f:
         json.dump(payload, f, ensure_ascii=False, indent=1)

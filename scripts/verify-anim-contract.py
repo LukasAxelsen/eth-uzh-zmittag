@@ -332,6 +332,13 @@ check("no raw data.mensas refs",
 check("calendar date NOT persisted (today-product)",
       "selectedDate" in JS and
       "selectedDate" not in JS[JS.index("function loadPrefs"):JS.index("function savePrefs")])
+check("today comes from Zurich clock, never build date",
+      "timeZone: 'Europe/Zurich'" in JS and
+      "selectedDate = currentDate" in JS and "selectedDate = json.date" not in JS and
+      "const todayIso = currentDate" in JS)
+check("date heading sync belongs to renderAll",
+      "updateDateHeading();" in JS[JS.index("function renderAll"):JS.index("function flipPlay")] and
+      "textContent" not in JS[JS.index("function selectDate"):JS.index("function onCalendarNav")])
 # Prices + opening hours: the frontend renders them from the dish/mensa
 # records — data.json must carry them or the UI silently shows nothing.
 check("dish price rendered from record (priceHTML + slide wrap)",

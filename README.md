@@ -29,7 +29,7 @@ Static site: no tracking.
 | Source | What we use |
 | --- | --- |
 | [ETH Cookpit API](https://idapps.ethz.ch/cookpit-pub-services/v1/meals) | Public JSON API for all ETH facilities. Energy comes in kJ and is converted to kcal; dish photo URLs come from the API's `image-url` field. |
-| [UZH Food2050](https://app.food2050.ch) | Public GraphQL API (today's offer, fallback when the weekly pages are empty); per-dish nutrition and photos are scraped from each dish's detail page (reached via the weekly menu). |
+| [UZH Food2050](https://app.food2050.ch) | Public weekly and dish pages, including embedded Pages Router / App Router data. Each dated dish page supplies nutrition, prices and photos. The former GraphQL endpoint is no longer used. |
 
 Both are public, no API key required. The script waits between requests to stay under Food2050's rate limits.
 
@@ -62,7 +62,7 @@ CONTRACT.md                 data.json schema, DOM class contract, animation cont
 
 ## Running it locally
 
-Requirements: Python 3.9+ and `curl` (used for HTTP requests). No dependencies to install.
+Requirements: Python 3.9+ and `curl` (used for HTTP requests); Node.js for checks. No dependencies to install.
 
 ```sh
 python3 menu.py   # on Windows: py menu.py
@@ -77,12 +77,20 @@ python3 -m http.server 8000
 
 Open <http://localhost:8000>.
 
+Offline regression checks: `python3 scripts/test-menu.py` and
+`node scripts/test-date.cjs`. Run the animation contract check after frontend edits.
+
 ## Deployment
 
-GitHub Actions runs `menu.py` on a cron schedule (04:00 UTC), validates
+GitHub Actions schedules `menu.py` at 03:17 and 07:17 UTC, validates
 `output/data.json`, uploads `output/` as a GitHub Pages artifact, and deploys
 that artifact. The workflow has read-only repository access while it builds;
 only the separate deployment job can publish to Pages.
+
+Scheduled runs may be delayed. Each build preloads the next two weeks;
+the browser selects today's date in Europe/Zurich independently of the build
+date, including after midnight in an open tab. If today's data is absent,
+it keeps the mensa list and shows empty meals instead of yesterday's dishes.
 
 In **Settings → Pages**, set the publishing source to **GitHub Actions** once
 before using this workflow. A weekday result with no dishes is blocked before

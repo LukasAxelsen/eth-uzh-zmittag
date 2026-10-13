@@ -29,6 +29,9 @@
 ```
 - The frontend renders the ACTIVE day: `data.days[selectedDate].mensas`
   through `activeMensas()` — `data.mensas` no longer exists.
+- The initial selected date and calendar's today marker use Europe/Zurich
+  wall time, independently of the build's `date`. Missing dates keep the
+  known mensa roster with empty meals; they never reuse another day's dishes.
 - nutrition keys (fixed set): kcal, protein, fat, saturated, carbs, sugar, salt, fiber, weight
 - Values are NUMBERS (no units). kcal unit=kcal, all others = g. weight only in total.
 - p100 = per-100g values; total = per-serving values. Empty object {} means no data.

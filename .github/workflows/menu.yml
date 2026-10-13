@@ -2,7 +2,7 @@ name: Build and deploy daily menus
 
 on:
   schedule:
-    - cron: '0 4 * * *'  # 04:00 UTC
+    - cron: '17 3,7 * * *'  # Early refresh + retry; avoid the busy full hour
   workflow_dispatch:
     inputs:
       allow_empty_today:
@@ -23,6 +23,11 @@ jobs:
       pages: read
     steps:
       - uses: actions/checkout@v6
+      - name: Verify scraper, date selection and animation contract
+        run: |
+          python3 scripts/test-menu.py
+          node scripts/test-date.cjs
+          python3 scripts/verify-anim-contract.py
       - name: Fetch menus
         run: python3 menu.py
       - name: Verify generated menu data

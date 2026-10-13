@@ -26,8 +26,6 @@
    1. Constants & configuration
    ------------------------------------------------------------ */
 
-// Replaced at deploy time (e.g. "2026-08-07"). Keep the token verbatim.
-const DATE_STR = 'DATE_PLACEHOLDER';
 const STORAGE_KEY = 'eth-uzh-nutrition-prefs';
 
 // Default groups, in display order (custom groups are appended after).
@@ -61,10 +59,20 @@ const EMPTY_MEALS_TEXT = 'No meals available today.';
 // ACTIVE dataset — every render reads from it.
 let data = null;
 
-// Selected calendar date (ISO). Starts at the served date, changes via
+// Selected calendar date (ISO). Starts at Zurich today, changes via
 // the calendar popover. NOT persisted: the menu site is a "today"
 // product; a remembered past date would confuse the next visit.
 let selectedDate = '';
+let currentDate = '';
+
+/** Menus are for Zurich; the build date and visitor's timezone aren't today. */
+function zurichToday() {
+  const parts = new Intl.DateTimeFormat('en', {
+    timeZone: 'Europe/Zurich', year: 'numeric', month: '2-digit', day: '2-digit',
+  }).formatToParts(new Date());
+  const part = (type) => parts.find((p) => p.type === type).value;
+  return `${part('year')}-${part('month')}-${part('day')}`;
+}
 
 // Precomputed once when data.json loads: every ISO date that carries at
 // least one dish. data.days is immutable after load, so the Set never
@@ -157,7 +165,13 @@ async function fetchData() {
       .filter(([, mensas]) => mensas.some((m) => m.meals.Lunch.length || m.meals.Dinner.length))
       .map(([iso]) => iso)
   );
-  return { date: json.date, days, availableDates: json.availableDates || [] };
+  // A stale deployment can lack today entirely. Keep the known roster and
+  // preferences, with empty meals/hours, rather than relabel yesterday's food.
+  const roster = new Map(Object.values(days).flat().map((m) => [m.id, m]));
+  const emptyMensas = Array.from(roster.values(), (m) => ({
+    ...m, opening: { Lunch: null, Dinner: null }, meals: { Lunch: [], Dinner: [] },
+  }));
+  return { date: json.date, days, emptyMensas, availableDates: Array.from(dataDates).sort() };
 }
 
 /** Guarantee every mensa has id/name/group, Lunch/Dinner arrays and
@@ -206,7 +220,7 @@ function validatePrefsAgainstData() {
     through this so switching the calendar date automatically feeds the
     whole pipeline (content, selector, raw text) — no per-feature wiring. */
 function activeMensas() {
-  return (data && data.days[selectedDate]) || [];
+  return data ? (data.days[selectedDate] || data.emptyMensas) : [];
 }
 
 function mensaById(id) {
@@ -366,6 +380,8 @@ function renderAll() {
     }
   }
   const snapshots = FLIP_CONTAINERS().map((c) => [c, flipFirst(c)]);
+  updateDateHeading();
+  if (calMonth) renderCalendar();
   updateSegmented();
   updatePhotoToggle();
   updateOpeningToggle();
@@ -399,6 +415,12 @@ function renderAll() {
   }
   updateRawText();
   for (const [c, first] of snapshots) flipPlay(c, first);
+}
+
+/** The heading and tab title always describe the selected day's dataset. */
+function updateDateHeading() {
+  document.getElementById('date-heading').textContent = formatDate(selectedDate);
+  document.title = 'Zmittag — ' + selectedDate;
 }
 
 /* ---------- keyed reconciliation + FLIP (Vue TransitionGroup pattern) ----------
@@ -1454,6 +1476,11 @@ function collapseBody(body) {
    ------------------------------------------------------------ */
 
 function bindEvents() {
+  window.addEventListener('focus', refreshCurrentDate);
+  window.addEventListener('pageshow', refreshCurrentDate);
+  document.addEventListener('visibilitychange', refreshCurrentDate);
+  // Covers midnight with the tab still visible; focus/pageshow cover sleep/BFCache.
+  setInterval(refreshCurrentDate, 60000);
   // The single hamburger both opens AND closes the drawer (it slides to
   // the top-right corner while open, so it stays visible/tappable).
   document.getElementById('menu-btn').addEventListener('click', toggleSelector);
@@ -1529,6 +1556,19 @@ function bindEvents() {
   });
 }
 
+/** Follow midnight only while browsing today; preserve explicit date browsing. */
+function refreshCurrentDate() {
+  const next = zurichToday();
+  if (next === currentDate) return;
+  const followToday = selectedDate === currentDate;
+  currentDate = next;
+  if (followToday) {
+    selectedDate = currentDate;
+    calMonth = currentDate.slice(0, 7) + '-01';
+  }
+  if (data) renderAll();
+}
+
 /** Hamburger: slide the #selector drawer in/out.
     Mobile: the .app content is pushed aside (CSS body.menu-open .app).
     Desktop: the drawer overlays the left margin. */
@@ -1578,6 +1618,7 @@ function onSegmentedClick(e) {
 
 // Month currently displayed in the calendar grid (first day of month).
 let calMonth = '';
+let calendarRenderKey = '';
 
 /** All dates that carry ANY data, keyed by ISO date. */
 function availableDates() {
@@ -1635,6 +1676,11 @@ function onCalendarKeydown(e) {
 /** Render the calendar grid for calMonth: weekday-aligned cells with
     enabled/disabled states; today, selected and data-bearing markers. */
 function renderCalendar() {
+  // Ordinary content toggles also run renderAll. Preserve calendar nodes
+  // and keyboard focus unless the state that determines this grid changed.
+  const key = `${calMonth}|${selectedDate}|${currentDate}|${Boolean(data)}`;
+  if (key === calendarRenderKey) return;
+  calendarRenderKey = key;
   const grid = document.getElementById('cal-grid');
   const title = document.getElementById('cal-title');
   const note = document.getElementById('cal-note');
@@ -1659,7 +1705,7 @@ function renderCalendar() {
   const first = new Date(y, m - 1, 1);
   const lead = (first.getDay() + 6) % 7;
   const daysInMonth = new Date(y, m, 0).getDate();
-  const todayIso = data ? data.date : '';
+  const todayIso = currentDate;
 
   const cells = [];
   for (let i = 0; i < lead; i++) cells.push('<span class="cal-cell cal-empty"></span>');
@@ -1691,9 +1737,7 @@ function renderCalendar() {
 function selectDate(iso) {
   if (!hasData(iso) || iso === selectedDate) return;
   selectedDate = iso;
-  document.getElementById('date-heading').textContent = formatDate(iso);
   renderAll(); // everything reads activeMensas() — one pipeline
-  renderCalendar(); // move the selected-cell highlight
 }
 
 function onCalendarNav(dir) {
@@ -1908,15 +1952,15 @@ function flashCopied(btn) {
    ------------------------------------------------------------ */
 
 async function init() {
-  document.getElementById('date-heading').textContent = formatDate(DATE_STR);
+  currentDate = zurichToday();
+  selectedDate = currentDate;
+  updateDateHeading();
   bindEvents();
   prefs = loadPrefs();
 
   try {
     const json = await fetchData();
     data = json;
-    selectedDate = json.date;
-    document.getElementById('date-heading').textContent = formatDate(selectedDate);
     validatePrefsAgainstData();
     renderAll(); // silent first paint — animations stay disabled
     animEnabled = true; // from here on, user interactions animate
