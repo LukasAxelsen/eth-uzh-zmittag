@@ -23,14 +23,24 @@ jobs:
       pages: read
     steps:
       - uses: actions/checkout@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          package-manager-cache: false
       - name: Verify scraper, date selection and animation contract
         run: |
           python3 scripts/test-menu.py
+          python3 scripts/test-hardening.py
           node scripts/test-date.cjs
+          node scripts/test-settings.cjs
           python3 scripts/verify-anim-contract.py
-      - name: Fetch menus
-        run: python3 menu.py
-      - name: Verify generated menu data
+      - name: Install browser test runtime
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Verify offline UI in Chromium
+        run: npm run test:browser
+      - name: Fetch and verify generated menu data
         env:
           ALLOW_EMPTY_TODAY: ${{ inputs.allow_empty_today || 'false' }}
         run: |
@@ -38,6 +48,7 @@ jobs:
           if [ "$ALLOW_EMPTY_TODAY" = "true" ]; then
             args+=(--allow-empty-today)
           fi
+          python3 menu.py "${args[@]}"
           python3 scripts/verify-menu-data.py output/data.json "${args[@]}"
       - name: Configure GitHub Pages
         uses: actions/configure-pages@v6

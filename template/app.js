@@ -82,12 +82,14 @@ let dataDates = new Set();
 
 // User preferences. Sets for membership (fast lookup), plain object
 // for custom groups. Mirrors the localStorage schema exactly:
-//   { meal, selected: [ids], photos: bool, theme: 'light'|'dark'|'auto',
+//   { meal, selected: [ids], photos/openingTimes/prices: bool, theme: 'light'|'dark'|'auto',
 //     customGroups: {name: [ids]}, collapsedMensas: [ids] }
 let prefs = {
   meal: 'Lunch',
   selected: new Set(),
   photos: true,   // photos ON by default (product owner)
+  openingTimes: true,
+  prices: true,
   theme: 'light',
   customGroups: {},
   collapsedMensas: new Set(),
@@ -132,6 +134,8 @@ function savePrefs() {
       meal: prefs.meal,
       selected: Array.from(prefs.selected),
       photos: prefs.photos,
+      openingTimes: prefs.openingTimes,
+      prices: prefs.prices,
       theme: prefs.theme,
       customGroups: prefs.customGroups,
       collapsedMensas: Array.from(prefs.collapsedMensas),
@@ -170,6 +174,7 @@ async function fetchData() {
   const roster = new Map(Object.values(days).flat().map((m) => [m.id, m]));
   const emptyMensas = Array.from(roster.values(), (m) => ({
     ...m, opening: { Lunch: null, Dinner: null }, meals: { Lunch: [], Dinner: [] },
+    service: { status: 'not_published' },
   }));
   return { date: json.date, days, emptyMensas, availableDates: Array.from(dataDates).sort() };
 }
@@ -182,6 +187,7 @@ function normalizeMensas(raw) {
     id: String(m.id),
     name: m.name || String(m.id),
     group: m.group || 'Other',
+    service: m.service || { status: 'not_published' },
     opening: {
       Lunch: (m.opening && m.opening.Lunch) || null,
       Dinner: (m.opening && m.opening.Dinner) || null,
@@ -261,16 +267,16 @@ function fmtNum(v) {
   return String(n);
 }
 
-/** Nutrition table cell: value + unit (kcal unitless). */
+/** Nutrition table cell: at most one decimal, no trailing .0, plus unit. */
 function fmtCell(v, key) {
   if (v == null || v === '') return '';
-  return fmtNum(v) + (key === 'kcal' ? ' kcal' : ' g');
+  return fmtNum(Number(v).toFixed(1)) + (key === 'kcal' ? ' kcal' : ' g');
 }
 
 /**
  * One nutrition segment for the raw text, e.g.
  * "kcal=152.0, protein=5.3g, fat=9.9g" (empty string when no data).
- * Matches the backend: falsy values are skipped, kcal has no unit,
+ * Matches the backend: missing values are skipped, kcal has no unit,
  * everything else gets "g". weight is only included in total.
  */
 function nutriSegment(nutr, includeWeight) {
@@ -278,7 +284,7 @@ function nutriSegment(nutr, includeWeight) {
   for (const key of NUTRI_KEYS) {
     if (key === 'weight' && !includeWeight) continue;
     const v = nutr[key];
-    if (!v) continue; // skips null/undefined/0/''/NaN — same as backend
+    if (v == null || v === '' || !Number.isFinite(v)) continue;
     parts.push(key + '=' + fmtNum(v) + (key === 'kcal' ? '' : 'g'));
   }
   return parts.join(', ');
@@ -813,9 +819,8 @@ function onPhotoToggleClick() {
   renderAll();
 }
 
-/* Opening-times / prices settings: plain CSS-class toggles (the
-   .hours-line-wrap / .price-wrap strips slide via max-height), so NO
-   renderAll — the DOM stays untouched, only html gets the class. */
+/* Opening-times / prices settings: state changes join renderAll;
+   CSS owns the max-height strips and their presentation. */
 function updateOpeningToggle() {
   const row = document.getElementById('opening-row');
   if (!row) return;
@@ -827,7 +832,7 @@ function updateOpeningToggle() {
 function onOpeningToggleClick() {
   prefs.openingTimes = !prefs.openingTimes;
   savePrefs();
-  updateOpeningToggle();
+  renderAll();
 }
 
 function updatePriceToggle() {
@@ -841,7 +846,7 @@ function updatePriceToggle() {
 function onPriceToggleClick() {
   prefs.prices = !prefs.prices;
   savePrefs();
-  updatePriceToggle();
+  renderAll();
 }
 
 /* ---------- appearance (light/dark/auto) ---------- */
@@ -1029,6 +1034,18 @@ function nutritionTableHTML(nutrition) {
     '</table>';
 }
 
+/** A closure requires source/calendar evidence; an empty menu never implies it. */
+function emptyServiceText(m) {
+  const service = m.service || {};
+  if (service.status === 'confirmed_closed') {
+    return 'Closed today' + (service.reason ? ' — ' + service.reason : '.');
+  }
+  if (service.status === 'request_failed' || service.status === 'parse_failed') {
+    return 'Menu unavailable.';
+  }
+  return 'No meals available';
+}
+
 function mensaSectionHTML(m) {
   const dishes = m.meals[prefs.meal];
   const collapsed = prefs.collapsedMensas.has(m.id);
@@ -1056,7 +1073,7 @@ function mensaSectionHTML(m) {
   // section created by outerHTML replacement is complete from birth —
   // a text-less duplicate was the "no hours shown" repeat bug.
   const hoursText = slotClosed
-    ? 'No meals available'
+    ? emptyServiceText(m)
     : ((m.opening || {})[prefs.meal] || 'Not open today');
   return '<section class="mensa-section' +
     (slotClosed ? ' no-meal-slot' : collapsed ? ' collapsed' : '') +
@@ -1068,7 +1085,7 @@ function mensaSectionHTML(m) {
       ? ''
       : '<svg class="mensa-caret" viewBox="0 0 12 12" aria-hidden="true" focusable="false"><path d="M2.5 3.5 6 8.5 9.5 3.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>') +
     '<span class="mensa-name">' + esc(m.name) + '</span>' +
-    '<span class="hours-line-wrap" aria-hidden="' + slotClosed + '">' +
+    '<span class="hours-line-wrap">' +
     '<span class="hours-line">' + esc(hoursText) + '</span>' +
     '</span>' +
     '</h2>' +
@@ -1098,7 +1115,7 @@ function updateHoursLines() {
     const line = section.querySelector('.hours-line');
     if (!line) continue;
     if (slotClosed) {
-      line.textContent = 'No meals available';
+      line.textContent = emptyServiceText(m);
       continue;
     }
     const hours = (m.opening || {})[prefs.meal];

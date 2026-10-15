@@ -1,0 +1,177 @@
+{
+  "StoreId": 42009,
+  "MenuCardId": 18509,
+  "Days": [
+    {
+      "Date": "2026-10-14T00:00:00Z",
+      "Categories": [
+        {
+          "Name": "LOCAL",
+          "Products": [
+            {
+              "Id": 23701014,
+              "Name": "Piccata Milanese",
+              "Teaser": "Truten Piccata | Tomatensugo | Safran Risotto | Broccoli",
+              "WeightInGrams": 600,
+              "NutritionFacts": {
+                "KCalPer100": 120,
+                "KJPer100": 499,
+                "FatsPer100": 5.39526,
+                "SatsPer100": 1.497296,
+                "CarbsPer100": 8.5,
+                "SugarPer100": 1.12,
+                "ProteinsPer100": 8.427672,
+                "RoughagePer100": 0.822796,
+                "SaltPer100": 0.69789,
+                "KCalPerServing": 685,
+                "KJPerServing": 2855,
+                "FatsPerServing": 30.86323,
+                "SatsPerServing": 8.565182,
+                "CarbsPerServing": 48.6,
+                "SugarPerServing": 6.42,
+                "ProteinsPerServing": 48.20994,
+                "RoughagePerServing": 4.70675,
+                "SaltPerServing": 3.992231
+              }
+            }
+          ]
+        },
+        {
+          "Name": "STREET",
+          "Products": [
+            {
+              "Id": 23701018,
+              "Name": "Cheese Burger",
+              "Teaser": "Rindfleisch oder Vegi-Burger | Senf Dip | Cheddar | Gurke | Eisbergsalat | Sesam Bun | Pommes frites",
+              "WeightInGrams": 465,
+              "NutritionFacts": {
+                "KCalPer100": 223,
+                "KJPer100": 932,
+                "FatsPer100": 12.67179,
+                "SatsPer100": 2.835582,
+                "CarbsPer100": 18.2,
+                "SugarPer100": 0.92,
+                "ProteinsPer100": 7.711952,
+                "RoughagePer100": 1.83075,
+                "SaltPer100": 1.234697,
+                "KCalPerServing": 1037,
+                "KJPerServing": 4333,
+                "FatsPerServing": 58.90029,
+                "SatsPerServing": 13.1801949,
+                "CarbsPerServing": 84.6,
+                "SugarPerServing": 4.29,
+                "ProteinsPerServing": 35.8462639,
+                "RoughagePerServing": 8.50959,
+                "SaltPerServing": 5.739052
+              }
+            }
+          ]
+        },
+        {
+          "Name": "VEGAN",
+          "Products": [
+            {
+              "Id": 23701023,
+              "Name": "Rigatoni con Polpettine",
+              "Teaser": "Linsenbolognese | Vegan Balls",
+              "WeightInGrams": 456,
+              "NutritionFacts": {
+                "KCalPer100": 120,
+                "KJPer100": 504,
+                "FatsPer100": 2.14749,
+                "SatsPer100": 0.258988,
+                "CarbsPer100": 16.2,
+                "SugarPer100": 1.93,
+                "ProteinsPer100": 6.418908,
+                "RoughagePer100": 2.745683,
+                "SaltPer100": 0.798376,
+                "KCalPerServing": 552,
+                "KJPerServing": 2328,
+                "FatsPerServing": 9.9166,
+                "SatsPerServing": 1.195944,
+                "CarbsPerServing": 74.9,
+                "SugarPerServing": 8.91,
+                "ProteinsPerServing": 29.6409874,
+                "RoughagePerServing": 12.6789093,
+                "SaltPerServing": 3.68671
+              }
+            }
+          ]
+        },
+        {
+          "Name": "GARDEN",
+          "Products": [
+            {
+              "Id": 23701005,
+              "Name": "Ur-Kartoffeln Szegediner Art",
+              "Teaser": "Paprikasauce | Sauerkraut | Röstzwiebeln | Sauerrahm | Spätzli",
+              "WeightInGrams": 636,
+              "NutritionFacts": {
+                "KCalPer100": 115,
+                "KJPer100": 483,
+                "FatsPer100": 3.40755,
+                "SatsPer100": 0.991809,
+                "CarbsPer100": 17,
+                "SugarPer100": 1.39,
+                "ProteinsPer100": 3.123331,
+                "RoughagePer100": 1.471364,
+                "SaltPer100": 0.812128,
+                "KCalPerServing": 732,
+                "KJPerServing": 3076,
+                "FatsPerServing": 21.7111,
+                "SatsPerServing": 6.31927,
+                "CarbsPerServing": 108.3,
+                "SugarPerServing": 8.84,
+                "ProteinsPerServing": 19.9001789,
+                "RoughagePerServing": 9.374736,
+                "SaltPerServing": 5.174443
+              }
+            }
+          ]
+        },
+        {
+          "Name": "HOME",
+          "Products": [
+            {
+              "Id": 23701010,
+              "Name": "Poulet Yassa",
+              "Teaser": "Pouletschenkel | Karamellisierten Zwiebeln | Limettensaft | Gewürzreis mit Karotten",
+              "WeightInGrams": 588,
+              "NutritionFacts": {
+                "KCalPer100": 147,
+                "KJPer100": 613,
+                "FatsPer100": 6.70585,
+                "SatsPer100": 1.846047,
+                "CarbsPer100": 17.5,
+                "SugarPer100": 1.48,
+                "ProteinsPer100": 8.176424,
+                "RoughagePer100": 0.425878,
+                "SaltPer100": 0.658327,
+                "KCalPerServing": 863,
+                "KJPerServing": 3608,
+                "FatsPerServing": 39.45905,
+                "SatsPerServing": 10.862648,
+                "CarbsPerServing": 102.9,
+                "SugarPerServing": 8.69,
+                "ProteinsPerServing": 48.11233,
+                "RoughagePerServing": 2.505981,
+                "SaltPerServing": 3.87378
+              }
+            }
+          ]
+        },
+        {
+          "Name": "Hot & Cold 100g",
+          "Products": [
+            {
+              "Id": 23701000,
+              "Name": "Hot & Cold Buffet",
+              "Teaser": "Reichhaltiges Salatbuffet und zusätzlich warme Komponenten - Gesund und Lecker!",
+              "WeightInGrams": 0
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

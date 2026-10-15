@@ -11,11 +11,16 @@
   "availableDates": ["2026-08-08", "2026-08-10", "..."],
   "days": {
     "2026-08-08": {
+      "sources": {
+        "ETH": {"status": "ok", "dishCount": 1, "issues": []},
+        "UZH": {"status": "confirmed_empty", "dishCount": 0, "issues": []}
+      },
       "mensas": [
         {
           "id": "eth-9",
           "name": "ETH Mensa Polyterrasse",
           "group": "Central",
+          "service": {"status": "ok"},
           "opening": {"Lunch": "11:00 - 14:00", "Dinner": null},
           "meals": {
             "Lunch":  [{"line": "STREET", "dish": "Lomo Saltado", "desc": "ingredients...", "photo": "https://…", "price": [{"label": "STUD", "value": 13.2}, {"label": "INT", "value": 14.2}, {"label": "EXT", "value": 16.5}], "priceUnit": "Portion", "nutrition": {"p100": {"kcal": 152.0, "protein": 5.3, "fat": 9.9, "saturated": 1.1, "carbs": 12.0, "sugar": 1.3, "salt": 0.53}, "total": {}}}],
@@ -35,11 +40,59 @@
 - nutrition keys (fixed set): kcal, protein, fat, saturated, carbs, sugar, salt, fiber, weight
 - Values are NUMBERS (no units). kcal unit=kcal, all others = g. weight only in total.
 - p100 = per-100g values; total = per-serving values. Empty object {} means no data.
+- Missing total nutrients are calculated from unrounded per-100g values only
+  when a positive source-supplied serving weight is known (`p100 × g / 100`).
+  Supplied totals, including real zeros, are never overwritten by calculation.
+- ETH SV enrichment uses the same restaurant, calendar date, meal-slot menu,
+  line, dish name and sides. Ingredient reordering and explicitly truncated
+  long Cookpit descriptions are allowed only for a unique candidate;
+  Tannenbar's verified WORLD/GREEN line aliases are scoped to that restaurant.
+  No same-name joins across dates/restaurants and no inferred portion sizes.
+- An SV zero weight is unknown. SV's combined zero-weight/all-zero facts
+  are buffet placeholders and must not replace existing Cookpit densities
+  or publish fictitious zero totals. An absent published week leaves totals
+  unknown; SV request/parse failures retain dishes and block publication via
+  the affected ETH outlet's `service` and the ETH `sources` summary.
+- Matched ETH dishes optionally include `nutritionSource`: `{provider: "SV",
+  url, date, storeId, menuId, productId, suppliedTotals: [nutrientKey],
+  calculatedTotals: [nutrientKey], match: "exact" | "ingredient-order" |
+  "truncated-description"}`. Nutrition remains numeric-only p100/total;
+  metadata is not used as frontend rendering state. SV directly supplied
+  per-100g values take precedence over Cookpit on matched recipes.
 - `photo`: absolute image URL or "" (ETH URLs carry `?client-id=ethz-wcms`; UZH photos are dish.imageUrl on the detail page). Empty string = no photo.
 - `price`: array of `{label, value}` (labels STUD, INT, INT&STUD, EXT, ALL); empty array = no price data. `priceUnit`: "Portion" | "100 g"; absent on UZH dishes.
 - mensa `opening`: `{slot: "HH:MM - HH:MM" or null}` — per meal slot; null = no service that slot.
 - group values: Central, Hoengg, Irchel, Oerlikon, Other
 - meal slots: "Lunch" | "Dinner"
+- Each day keeps exactly the 32 stable roster IDs. The publication guard
+  validates every day, the complete index, numeric values, and independent
+  ETH/UZH health. The build date must be Europe/Zurich today.
+- UZH dates use the official weekly page for their ISO week/year and only
+  that date's published detail URLs. A category present this week is never
+  assumed to exist next week. An explicitly dated empty list is empty
+  service; malformed published pages/details still block publication.
+- `service.status`: `ok` (dishes published), `confirmed_empty` (valid dated
+  source response with no dishes), `not_published` (date outside published
+  coverage), `confirmed_closed` (verified dated source/calendar evidence),
+  `request_failed`, or `parse_failed`. Empty menus/hours never imply closure.
+- Each `sources` summary records status, observed `dishCount` and `issues`.
+  Failure issues identify `mensa`, `stage`, `message`, and the error status.
+  Any source/outlet failure anywhere in the window blocks publication,
+  including when the manual empty-day override is enabled.
+- A confirmed closure additionally carries `reason` and
+  `evidence: {kind: "source" | "calendar", url, confirmedOn: ISO}`.
+  `closures.json` holds curated records `{date, mensa, reason, evidence}`;
+  its initial empty array makes no unverified closure claims. The build
+  rejects missing evidence and conflicts with published dishes. Observed
+  source errors retain their failure status even with a closure record.
+- Confirmed closed mensas display `Closed today — <reason>` through the
+  existing section rendering and hours sync. Ordinary empty menus retain
+  `No meals available`; a missing date never inherits another day's closure.
+- Genuine finite zero prices/nutrients are retained. Missing numeric fields
+  are omitted, negative price/nutrition values are rejected, and NaN/Infinity
+  cannot be serialized. Food2050 units are kcal for energy, g for nutrients
+  and serving weight; prices are CHF. Per-100g grams must be 0–100; supplied
+  serving nutrients cannot exceed the supplied serving weight.
 - availableDates = sorted ISO dates with ANY data (weekends absent or
   empty — the calendar disables them).
 
@@ -125,12 +178,11 @@ Every content change runs through the ONE pipeline:
 
 ## localStorage key: "eth-uzh-nutrition-prefs"
 ```json
-{"meal":"Lunch","selected":["eth-9","uzh-obere-mensa",...],"photos":true,"theme":"light","customGroups":{"My Group":["eth-3",...]},"collapsedMensas":[]}
+{"meal":"Lunch","selected":["eth-9","uzh-obere-mensa",...],"photos":true,"openingTimes":true,"prices":true,"theme":"light","customGroups":{"My Group":["eth-3",...]},"collapsedMensas":[]}
 ```
 - photos: bool, DEFAULT true (photos on — product owner); openingTimes/prices:
-  bool, DEFAULT true, NOT persisted — savePrefs omits them, so the toggles
-  reset to on after a reload (loadPrefs supports them; savePrefs doesn't write
-  them yet); selection
+  bool, DEFAULT true, persisted through the same loadPrefs/savePrefs path.
+  Missing fields in older storage keep the current true defaults; selection
   DEFAULT: all of the Central group when nothing is stored (see
   validatePrefsAgainstData); theme DEFAULT "light" (first visit shows the
   light switch active, matching the light default palette — "auto"

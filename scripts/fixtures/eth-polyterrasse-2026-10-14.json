@@ -1,0 +1,164 @@
+{
+  "meal-times": [
+    {
+      "meal-time-id": 21280,
+      "meal-time-name": "Abend",
+      "date": "2026-10-14",
+      "time-from": "17:30:00+02:00",
+      "time-to": "19:30:00+02:00",
+      "weekly-rota-id": 3660,
+      "facility-id": 9
+    },
+    {
+      "meal-time-id": 21279,
+      "meal-time-name": "Mittag",
+      "date": "2026-10-14",
+      "time-from": "11:15:00+02:00",
+      "time-to": "14:00:00+02:00",
+      "weekly-rota-id": 3660,
+      "facility-id": 9
+    }
+  ],
+  "meals": [
+    {
+      "meal-time-id": 21279,
+      "line-name": "LOCAL",
+      "meal-name": "Piccata Milanese",
+      "description": "Truten Piccata | Tomatensugo | Safran Risotto | Broccoli",
+      "energy": "499",
+      "protein": "8.4",
+      "fat": "5.4",
+      "saturated-fatty-acids": "1.5",
+      "carbohydrates": "8.5",
+      "sugar": "1.1",
+      "salt": "0.70",
+      "price-unit-desc-short": "Portion"
+    },
+    {
+      "meal-time-id": 21279,
+      "line-name": "STREET",
+      "meal-name": "Cheese Burger",
+      "description": "Rindfleisch oder Vegi-Burger | Senf Dip | Cheddar | Gurke | Eisbergsalat | Sesam Bun | Pommes frites",
+      "energy": "932",
+      "protein": "7.7",
+      "fat": "13",
+      "saturated-fatty-acids": "2.8",
+      "carbohydrates": "18",
+      "sugar": "0.9",
+      "salt": "1.23",
+      "price-unit-desc-short": "Portion"
+    },
+    {
+      "meal-time-id": 21279,
+      "line-name": "VEGAN",
+      "meal-name": "Rigatoni con Polpettine",
+      "description": "Linsenbolognese | Vegan Balls",
+      "energy": "504",
+      "protein": "6.4",
+      "fat": "2.2",
+      "saturated-fatty-acids": "0.3",
+      "carbohydrates": "16",
+      "sugar": "1.9",
+      "salt": "0.80",
+      "price-unit-desc-short": "Portion"
+    },
+    {
+      "meal-time-id": 21279,
+      "line-name": "GARDEN",
+      "meal-name": "Ur-Kartoffeln Szegediner Art",
+      "description": "Paprikasauce | Sauerkraut | Röstzwiebeln | Sauerrahm | Spätzli",
+      "energy": "483",
+      "protein": "3.1",
+      "fat": "3.4",
+      "saturated-fatty-acids": "1.0",
+      "carbohydrates": "17",
+      "sugar": "1.4",
+      "salt": "0.81",
+      "price-unit-desc-short": "Portion"
+    },
+    {
+      "meal-time-id": 21279,
+      "line-name": "HOME",
+      "meal-name": "Poulet Yassa",
+      "description": "Pouletschenkel | Karamellisierten Zwiebeln | Limettensaft | Gewürzreis mit Karotten",
+      "energy": "613",
+      "protein": "8.2",
+      "fat": "6.7",
+      "saturated-fatty-acids": "1.9",
+      "carbohydrates": "17",
+      "sugar": "1.5",
+      "salt": "0.66",
+      "price-unit-desc-short": "Portion"
+    },
+    {
+      "meal-time-id": 21279,
+      "line-name": "Hot & Cold 100g",
+      "meal-name": "Hot & Cold Buffet",
+      "description": "Reichhaltiges Salatbuffet und zusätzlich warme Komponenten - Gesund und Lecker!",
+      "energy": "0.0",
+      "protein": "0.0",
+      "fat": "0.0",
+      "saturated-fatty-acids": "0.0",
+      "carbohydrates": "0.0",
+      "sugar": "0.0",
+      "salt": "0.00",
+      "price-unit-desc-short": "Portion"
+    },
+    {
+      "meal-time-id": 21279,
+      "line-name": "DESSERT",
+      "meal-name": "Tagesdessert",
+      "description": "Täglich süsse Köstlichkeiten\n",
+      "price-unit-desc-short": "Portion"
+    },
+    {
+      "meal-time-id": 21280,
+      "line-name": "STREET ABEND",
+      "meal-name": "New Swiss Kitchen",
+      "description": "Älpler Pastaspitzen mit Pilzfüllung | Bergkräutersauce | Twister- Kartoffeln | Reibkäse | Speck Chips",
+      "energy": "665",
+      "protein": "5.8",
+      "fat": "5.9",
+      "saturated-fatty-acids": "1.2",
+      "carbohydrates": "20",
+      "sugar": "1.6",
+      "salt": "1.24",
+      "price-unit-desc-short": "Portion"
+    },
+    {
+      "meal-time-id": 21280,
+      "line-name": "GARDEN ABEND",
+      "meal-name": "Bombay Gemüse Curry",
+      "description": "Karotten | Lauch | Sellerie | Basmatireis | Kokoslinsen",
+      "energy": "442",
+      "protein": "3.5",
+      "fat": "2.0",
+      "saturated-fatty-acids": "1.2",
+      "carbohydrates": "17",
+      "sugar": "1.3",
+      "salt": "0.80",
+      "price-unit-desc-short": "Portion"
+    },
+    {
+      "meal-time-id": 21280,
+      "line-name": "HOME ABEND",
+      "meal-name": "Bombay Poulet Curry",
+      "description": "Karotten | Lauch | Sellerie | Basmatireis | Kokoslinsen",
+      "energy": "487",
+      "protein": "5.7",
+      "fat": "2.7",
+      "saturated-fatty-acids": "1.2",
+      "carbohydrates": "17",
+      "sugar": "0.9",
+      "salt": "0.80",
+      "price-unit-desc-short": "Portion"
+    },
+    {
+      "meal-time-id": 21280,
+      "line-name": "POLY-BOWLS",
+      "meal-name": "Poly-Bowls",
+      "description": "Täglich frisch zubereitet – wahlweise mit Fleisch oder vegetarisch. \nFrisch, leicht, lecker!",
+      "price-unit-desc-short": "Portion"
+    }
+  ]
+}

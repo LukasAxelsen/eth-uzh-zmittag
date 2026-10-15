@@ -1,0 +1,10 @@
+{
+  "name": "eth-uzh-menu-checks",
+  "private": true,
+  "scripts": {
+    "test:browser": "node scripts/test-browser.cjs"
+  },
+  "devDependencies": {
+    "playwright": "1.62.1"
+  }
+}

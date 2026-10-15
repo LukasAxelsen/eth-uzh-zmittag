@@ -1,0 +1,1 @@
+{"meals":[{"meal-time-id":901,"meal-name":"Vegetable rice","line-name":"Garden","description":"Rice, vegetables","meal-price-array":[{"price":"6.10","customer-group-code":10}],"energy":418.4,"protein":5}],"meal-times":[{"meal-time-id":901,"facility-id":9,"meal-time-name":"Mittagessen","time-from":"11:00:00+02:00","time-to":"14:00:00+02:00"}]}
