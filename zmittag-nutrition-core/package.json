@@ -1,0 +1,15 @@
+{
+  "name": "zmittag-nutrition-core",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Dependency-free, source-labelled adult nutrition reference and meal-planning calculations",
+  "type": "module",
+  "exports": { ".": { "types": "./core.d.mts", "import": "./core.mjs" } },
+  "types": "./core.d.mts",
+  "scripts": {
+    "test": "node test/run.mjs",
+    "example": "node example.mjs",
+    "bench": "node benchmark.mjs"
+  },
+  "engines": { "node": ">=18" }
+}

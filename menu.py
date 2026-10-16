@@ -1300,7 +1300,10 @@ def publish_site(payload, *, allow_empty_today=False):
     files['style.css'] = css
 
     with open(os.path.join(TEMPLATE_DIR, "app.js")) as f:
-        files['app.js'] = f.read().replace("DATE_PLACEHOLDER", today)
+        files['app.js'] = f.read().replace("DATE_PLACEHOLDER", today).replace("VER_PLACEHOLDER", rev)
+    for name in ('firebase-config.js', 'account-sync.mjs'):
+        with open(os.path.join(TEMPLATE_DIR, name)) as f:
+            files[name] = f.read()
     parent = os.path.dirname(os.path.abspath(OUTPUT_DIR))
     os.makedirs(parent, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='.menu-build-', dir=parent) as staging:
@@ -1309,7 +1312,7 @@ def publish_site(payload, *, allow_empty_today=False):
                 f.write(contents)
         os.makedirs(OUTPUT_DIR, exist_ok=True)
         # data.json is switched last; each replacement is atomic on this FS.
-        for name in ('index.html', 'style.css', 'app.js', 'index.txt', 'data.json'):
+        for name in ('index.html', 'style.css', 'app.js', 'firebase-config.js', 'account-sync.mjs', 'index.txt', 'data.json'):
             os.replace(os.path.join(staging, name), os.path.join(OUTPUT_DIR, name))
 
 

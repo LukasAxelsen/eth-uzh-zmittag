@@ -1,0 +1,29 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function owner(uid) {
+      return request.auth != null && request.auth.uid == uid
+        && request.auth.token.firebase.sign_in_provider == 'google.com';
+    }
+    function validPreferences(p) {
+      return p is map
+        && p.keys().hasAll(['meal', 'selected', 'photos', 'openingTimes', 'prices', 'theme', 'customGroups', 'collapsedMensas'])
+        && p.keys().hasOnly(['meal', 'selected', 'photos', 'openingTimes', 'prices', 'theme', 'customGroups', 'hiddenGroups', 'collapsedMensas'])
+        && p.meal in ['Lunch', 'Dinner'] && p.theme in ['light', 'dark', 'auto']
+        && p.photos is bool && p.openingTimes is bool && p.prices is bool
+        && p.selected is list && p.selected.size() <= 64
+        && p.collapsedMensas is list && p.collapsedMensas.size() <= 64
+        && (!('hiddenGroups' in p) || (p.hiddenGroups is list && p.hiddenGroups.size() <= 64))
+        && p.customGroups is map && p.customGroups.size() <= 50;
+    }
+    match /users/{uid}/preferences/current {
+      allow get: if owner(uid);
+      allow create, update: if owner(uid)
+        && request.resource.data.keys().hasOnly(['schemaVersion', 'prefs', 'updatedAt'])
+        && request.resource.data.schemaVersion == 1
+        && request.resource.data.updatedAt == request.time
+        && validPreferences(request.resource.data.prefs);
+    }
+    // No public reads, collection listing, profile storage or client deletes.
+  }
+}

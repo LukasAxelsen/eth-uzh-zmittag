@@ -203,7 +203,7 @@ class OutputPreservationTests(unittest.TestCase):
             self.assertEqual(report['mensaCount'], 32)
             self.assertEqual(report['sources']['ETH']['status'], 'ok')
             self.assertEqual(report['sources']['UZH']['status'], 'ok')
-            self.assertEqual({p.name for p in Path(directory).iterdir()}, {'data.json', 'index.txt', 'index.html', 'style.css', 'app.js'})
+            self.assertEqual({p.name for p in Path(directory).iterdir()}, {'data.json', 'index.txt', 'index.html', 'style.css', 'app.js', 'firebase-config.js', 'account-sync.mjs'})
 
 
 class PublicationHealthTests(unittest.TestCase):

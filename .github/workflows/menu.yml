@@ -33,6 +33,7 @@ jobs:
           python3 scripts/test-hardening.py
           node scripts/test-date.cjs
           node scripts/test-settings.cjs
+          node scripts/test-account-sync.mjs
           python3 scripts/verify-anim-contract.py
       - name: Install browser test runtime
         run: |

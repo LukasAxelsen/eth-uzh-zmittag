@@ -20,6 +20,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 JS = (ROOT / "template" / "app.js").read_text(encoding="utf-8")
 CSS = (ROOT / "template" / "style.css").read_text(encoding="utf-8")
+HTML = (ROOT / "template" / "index.html").read_text(encoding="utf-8")
 
 FAILURES = []
 
@@ -415,6 +416,47 @@ check("feature code has no raw appendChild loops",
       "reconcileChildren" in JS)  # reconcile owns inserts
 check("state accessors are the only data reads",
       JS.count("activeMensas()") >= 6 and JS.count("groupMembers(") >= 3)
+
+print("== D3. sidebar tabs, groups and shared alerts ==")
+check("sidebar tabs reuse the segmented pill",
+      'segmented sidebar-tabs' in HTML and '--seg-count: 3' in CSS and
+      'aria-controls="sidebar-page-mensas"' in HTML)
+check("sidebar pages join the unified keyed pipeline",
+      "getElementById('sidebar-pages')" in fc and
+      "renderSidebar();" in ra and "reconcileChildren(pages, ['mensas', 'data', 'setting']" in JS)
+check("sidebar page switches are instant and preserve mounted controls",
+      "page.hidden = inactive" in JS and 'data-motion="instant"' in HTML and
+      "if (container.closest('[hidden]') || container.matches('[data-motion=\"instant\"]')) return first;" in JS)
+check("groups use an inline add chip and accessible hover delete buttons",
+      'New group name' not in HTML and 'id="group-add-btn"' not in HTML and
+      "button.id = 'group-add-btn'" in JS and 'class="chip-x"' in JS and
+      '.group-chip:hover .chip-x' in CSS and 'hiddenGroups' in JS)
+check("account identity has login and logout text",
+      '>Login</button>' in HTML and '>Logout</button>' in HTML and
+      'Your preferences, on every device.' not in JS + HTML)
+dialog_css = section_css('.sidebar-dialog {', ['@media (max-width: 767px)'])
+check("dialogs have a plain surface, inset actions and center scale entrance",
+      'border: none;' in dialog_css and 'border-top:' not in dialog_css and
+      'transform-origin: center;' in dialog_css and '@keyframes dialog-pop' in dialog_css and
+      'background: var(--thumb-bg)' in dialog_css)
+check("dark dialog backdrop subtly lightens the page in both dark palettes",
+      CSS.count('--dialog-backdrop: rgb(255 255 255 / 8%);') == 2 and
+      '.sidebar-dialog::backdrop { background: var(--dialog-backdrop); }' in CSS)
+check("sidebar handlers only change state then renderAll",
+      "sidebarTab = btn.dataset.tab" in JS and
+      "renderAll();" in section("function onSidebarTabClick", ["function onSidebarTabKeydown"]))
+check("cached sidebar pages revive through the reconciliation primitive",
+      "node = makeEl(key);\n      if (node.dataset.exiting) reviveExit(node);" in JS)
+check("reset/undo preserve the current selection",
+      "function rememberGroups()" in JS and "function undoGroups()" in JS and
+      "prefs.selected" not in section("function resetGroups()", ["function undoGroups()"]))
+check("one native dialog for reset, sync choice and errors",
+      HTML.count('<dialog ') == 1 and 'id="sidebar-dialog"' in HTML and
+      'window.confirm(' not in JS and 'window.alert(' not in JS and
+      "function renderSidebarDialog()" in JS)
+check("account changes render through renderAll",
+      "function onAccountChange(next)" in JS and
+      "renderAll();" in section("function onAccountChange(next)", ["async function initAccountSync()"]))
 
 print("== E. syntax ==")
 r = subprocess.run(["node", "--check", str(ROOT / "template" / "app.js")],

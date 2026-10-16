@@ -121,17 +121,27 @@ header .header
     .seg-thumb (sliding indicator)
     button.seg-option[data-meal=Lunch|Dinner]
 #selector (collapsible panel)
-  .selector-columns (2 columns)
+  #sidebar-tabs.segmented (Mensas / My Data / Setting; same pill as Appearance)
+  #sidebar-pages.selector-columns (keyed, mounted tabpanels; instant visibility switch)
+  Mensas tab:
     .selector-mensas (scrollable list)
       .mensa-row (each: .mensa-check circle + label)
     .selector-groups
-      .group-row (group name + .group-select-all + count)
-      .group-add (input + button to add custom group)
-    .selector-pane-title "Setting" (bottom-most pane)
+      .groups-heading (Groups + #groups-reset + #groups-undo)
+      .group-chip (separate apply + hover/focus delete buttons)
+      .group-editor (empty inline chip after clicking the trailing +)
+      .group-add-chip (trailing + button)
+  My Data tab:
+    .account-avatar (Google sign-in; profile image after sign-in)
+    .account-name / blue Login; Logout below the signed-in name
+    .account-status, .account-action (only for actionable sync states)
+  Setting tab:
     .photo-row (.mensa-row style; .selected = photos on; label "Show menu photos")
     #opening-row (.mensa-row .photo-row style; label "Show opening times")
     #price-row (.mensa-row .photo-row style; label "Show prices")
     #appearance-seg (light/dark/auto segmented switch)
+#sidebar-dialog (one native modal for reset, cloud choice and connection errors)
+  #sidebar-dialog-content (keyed prompt; focus containment, Escape, return focus)
 main#content
   section.mensa-section (collapsible: click .mensa-title toggles)
     h2.mensa-title (with .mensa-caret)
@@ -147,6 +157,8 @@ footer.footer
 - Mensa row selected style: filled circle (•) vs empty circle
 - NO cards, NO box-shadows, NO borders around containers — flat Apple.com style
 - dark mode via prefers-color-scheme (html[data-theme] light|dark|auto); responsive at 600px/768px
+- Sidebar modal backdrop: 30% black in light mode; 8% white in forced/auto
+  dark mode to subtly lift the page behind the black dialog surface.
 
 ## Animation contract (see AGENTS.md for the enforceable version)
 
@@ -174,11 +186,15 @@ Every content change runs through the ONE pipeline:
   the padding floor; at shrink end it pops on removal. animateEnter
   restores the padding for the measure so the grow target includes it.
 - NO opacity/fade/view-transitions anywhere in content animation.
+- Sidebar tab panels remain mounted and switch instantly. Hidden containers
+  do not contribute FLIP measurements. The native sidebar modal is the sole
+  scale entrance exception: centered .88 → 1.025 → .997 → 1 over 460ms,
+  using --ease, with no fade. Reduced motion disables the entrance.
 - First paint silent (animEnabled); prefers-reduced-motion respected.
 
 ## localStorage key: "eth-uzh-nutrition-prefs"
 ```json
-{"meal":"Lunch","selected":["eth-9","uzh-obere-mensa",...],"photos":true,"openingTimes":true,"prices":true,"theme":"light","customGroups":{"My Group":["eth-3",...]},"collapsedMensas":[]}
+{"meal":"Lunch","selected":["eth-9","uzh-obere-mensa",...],"photos":true,"openingTimes":true,"prices":true,"theme":"light","customGroups":{"My Group":["eth-3",...]},"hiddenGroups":[],"collapsedMensas":[]}
 ```
 - photos: bool, DEFAULT true (photos on — product owner); openingTimes/prices:
   bool, DEFAULT true, persisted through the same loadPrefs/savePrefs path.
@@ -189,3 +205,36 @@ Every content change runs through the ONE pipeline:
   confused users into thinking Light was broken/grey).
 - The calendar date (selectedDate) is intentionally NOT persisted — the
   site is a "today" product.
+
+## Sidebar and account preferences
+
+- Drawer motion/width/breakpoints are unchanged. The active sidebar tab is
+  session-only and starts at Mensas. Switching tabs preserves cached mensa
+  rows, group input and settings controls; handlers use renderAll only.
+- Default/data group deletion adds its name to hiddenGroups; custom deletion
+  removes its customGroups entry. Both preserve selected mensas. Reset clears
+  customGroups and hiddenGroups after confirmation, restoring default groups.
+  The trailing + opens an empty name chip; Enter or blur saves it, Escape
+  cancels. Delete is visible on hover/focus, always visible on touch devices.
+  Undo restores the groups before the last add/redefinition/delete/reset;
+  it is a single step, local to this session, and clears on remote group replacement.
+- Optional Google sign-in uses Firebase Auth. Public Web App configuration
+  lives in template/firebase-config.js; credentials and service-account keys
+  never belong in the site. Account transport lives in account-sync.mjs.
+- Firestore document: users/{uid}/preferences/current, with schemaVersion:1,
+  prefs (the nine fields above), updatedAt (server timestamp). hiddenGroups
+  is optional in existing documents and defaults to an empty list. Rules permit
+  only the authenticated Google user to get/create/update their own document;
+  no public reads, collection lists or client deletes.
+- A new cloud document uploads the current local preferences automatically.
+  Existing cloud preferences require an explicit local/cloud choice at an
+  interactive login or a first visit on a new device. Cancel defers syncing;
+  My Data keeps the choice available. Trusted session restores resume sync.
+- Writes patch changed top-level preference fields. customGroups is replaced
+  as a complete field, so group deletion/reset synchronizes correctly. Same
+  field conflicts use server write order; independent fields are preserved.
+- Per-account sync checkpoints and pending changes stay in localStorage under
+  eth-uzh-nutrition-sync-{uid}; offline changes survive reload. Server-confirmed
+  snapshots alone determine new-account status. Account changes fence stale
+  asynchronous callbacks. Dates, menus, names and avatars are not stored in
+  the preference document. Sign-out retains local preferences.

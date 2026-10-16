@@ -14,7 +14,7 @@
        (containing-block trap), which would break the slide while .app
        is translated off-screen. -->
   <button class="menu-btn" id="menu-btn" type="button"
-          aria-label="Toggle mensa selector"
+          aria-label="Toggle sidebar"
           aria-controls="selector" aria-expanded="false"></button>
 
   <div class="app" id="app">
@@ -101,30 +101,65 @@
     </footer>
   </div>
 
-  <!-- ============ Mensa selector (drawer, sibling of .app) ============ -->
-  <div id="selector" aria-label="Mensa selector" aria-hidden="true">
-    <div class="selector-columns">
-      <!-- Top pane: scrollable list of all mensas -->
+  <!-- Drawer motion is unchanged. All pages share the existing segmented control. -->
+  <div id="selector" aria-label="Sidebar" aria-hidden="true">
+    <div class="sidebar-head">
+      <div class="segmented sidebar-tabs" id="sidebar-tabs" role="tablist" aria-label="Sidebar">
+        <span class="seg-thumb" aria-hidden="true"></span>
+        <button class="seg-option active" id="sidebar-tab-mensas" role="tab" type="button"
+                data-tab="mensas" aria-controls="sidebar-page-mensas" aria-selected="true">Mensas</button>
+        <button class="seg-option" id="sidebar-tab-data" role="tab" type="button"
+                data-tab="data" aria-controls="sidebar-page-data" aria-selected="false" tabindex="-1">My Data</button>
+        <button class="seg-option" id="sidebar-tab-setting" role="tab" type="button"
+                data-tab="setting" aria-controls="sidebar-page-setting" aria-selected="false" tabindex="-1">Setting</button>
+      </div>
+    </div>
+    <div id="sidebar-pages" class="selector-columns" data-motion="instant"></div>
+  </div>
+
+  <!-- Page nodes are cached and reused by keyed reconciliation. -->
+  <template id="sidebar-template-mensas">
+    <div class="sidebar-page" id="sidebar-page-mensas" role="tabpanel" aria-labelledby="sidebar-tab-mensas">
       <section class="selector-pane">
-        <h3 class="selector-pane-title">Mensas</h3>
         <div class="selector-mensas"></div>
       </section>
-
-      <!-- Bottom pane: group rows + custom group creation -->
       <section class="selector-pane">
-        <h3 class="selector-pane-title">Groups</h3>
+        <div class="groups-heading">
+          <h3 class="selector-pane-title">Groups</h3>
+          <button class="sidebar-text" id="groups-reset" type="button" aria-label="Reset groups">Reset</button>
+          <button class="sidebar-icon" id="groups-undo" type="button" title="Undo group change" aria-label="Undo group change" disabled>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 4-5 5 5 5M3 9h10a7 7 0 0 1 0 14" transform="translate(0 -2)"/></svg>
+          </button>
+        </div>
         <div class="selector-groups">
           <div class="group-rows"></div>
-          <div class="group-add">
-            <input id="group-input" type="text" placeholder="New group name"
-                   aria-label="New group name" autocomplete="off">
-            <button id="group-add-btn" type="button">Add</button>
-            <span id="group-add-msg" role="status" aria-live="polite"></span>
-          </div>
+          <span id="group-add-msg" role="status" aria-live="polite"></span>
         </div>
       </section>
 
-      <!-- Bottom-most pane: settings (photos row, mensa-row style) -->
+    </div>
+  </template>
+
+  <template id="sidebar-template-data">
+    <div class="sidebar-page" id="sidebar-page-data" role="tabpanel" aria-labelledby="sidebar-tab-data">
+      <section class="account-pane" aria-label="Your account">
+        <button class="account-avatar" id="account-avatar" type="button" aria-label="Sign in with Google">
+          <svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="23" r="10"/><path d="M13 54c0-11 8-18 19-18s19 7 19 18"/></svg>
+          <span id="account-photo"></span>
+        </button>
+        <div class="account-identity">
+          <h3 class="account-name" id="account-name" hidden></h3>
+          <button class="account-action account-login" id="account-login" type="button">Login</button>
+          <button class="account-action account-signout" id="account-signout" type="button" hidden>Logout</button>
+        </div>
+        <button class="account-action account-retry" id="account-action" type="button" hidden></button>
+        <p class="account-status" id="account-status" role="status" aria-live="polite" hidden></p>
+      </section>
+    </div>
+  </template>
+
+  <template id="sidebar-template-setting">
+    <div class="sidebar-page" id="sidebar-page-setting" role="tabpanel" aria-labelledby="sidebar-tab-setting">
       <section class="selector-pane settings-pane">
         <h3 class="selector-pane-title">Setting</h3>
         <div class="mensa-row photo-row" id="photo-row" role="button" tabindex="0"
@@ -153,8 +188,14 @@
         </div>
       </section>
     </div>
-  </div>
+  </template>
 
+  <!-- Shared, accessible macOS/iOS-style alert for all sidebar prompts. -->
+  <dialog class="sidebar-dialog" id="sidebar-dialog" aria-labelledby="sidebar-dialog-title" aria-describedby="sidebar-dialog-description">
+    <div id="sidebar-dialog-content"></div>
+  </dialog>
+
+  <script src="firebase-config.js?v=VER_PLACEHOLDER"></script>
   <script src="app.js?v=VER_PLACEHOLDER"></script>
 </body>
 </html>

@@ -1,0 +1,225 @@
+{
+  "snapshotDate": "2026-10-16",
+  "sources": {
+    "efsa_energy": {
+      "title": "EFSA DRVs for energy",
+      "version": "2013, DOI 10.2903/j.efsa.2013.3005",
+      "url": "https://efsa.onlinelibrary.wiley.com/doi/10.2903/j.efsa.2013.3005"
+    },
+    "efsa_asset": {
+      "title": "EFSA DRV Finder, English reference data",
+      "version": "snapshot 2026-10-16",
+      "url": "https://multimedia.efsa.europa.eu/drvs/assets/data/languages/en/data.json"
+    },
+    "efsa_protein": {
+      "title": "EFSA DRVs for protein",
+      "version": "2012, DOI 10.2903/j.efsa.2012.2557",
+      "url": "https://efsa.onlinelibrary.wiley.com/doi/10.2903/j.efsa.2012.2557"
+    },
+    "efsa_carbs": {
+      "title": "EFSA DRVs for carbohydrates and dietary fibre",
+      "version": "2010",
+      "url": "https://efsa.onlinelibrary.wiley.com/doi/10.2903/j.efsa.2010.1462"
+    },
+    "efsa_fat": {
+      "title": "EFSA DRVs for fats",
+      "version": "2010",
+      "url": "https://efsa.onlinelibrary.wiley.com/doi/10.2903/j.efsa.2010.1461"
+    },
+    "efsa_sodium": {
+      "title": "EFSA DRVs for sodium",
+      "version": "2019",
+      "url": "https://efsa.onlinelibrary.wiley.com/doi/10.2903/j.efsa.2019.5778"
+    },
+    "efsa_sugars": {
+      "title": "EFSA tolerable upper intake level for dietary sugars",
+      "version": "2022",
+      "url": "https://efsa.onlinelibrary.wiley.com/doi/10.2903/j.efsa.2022.7074"
+    },
+    "dge_energy": {
+      "title": "DGE energy reference table and REE FAQ",
+      "version": "2015 derivation; website checked 2026-10-16",
+      "url": "https://www.dge.de/gesunde-ernaehrung/faq/energiezufuhr/"
+    },
+    "dge_energy_table": {
+      "title": "DGE energy table",
+      "version": "current 2026-10-16",
+      "url": "https://www.dge.de/wissenschaft/referenzwerte/energie/"
+    },
+    "dge_protein": {
+      "title": "DGE protein reference values",
+      "version": "DGE/ÖGE 2025, current website",
+      "url": "https://www.dge.de/wissenschaft/referenzwerte/protein/"
+    },
+    "dge_fat": {
+      "title": "DGE fat reference values",
+      "version": "current 2026-10-16",
+      "url": "https://www.dge.de/wissenschaft/referenzwerte/fett-essenzielle-fettsaeuren/"
+    },
+    "dge_carbs": {
+      "title": "DGE carbohydrate reference values",
+      "version": "current 2026-10-16",
+      "url": "https://www.dge.de/wissenschaft/referenzwerte/kohlenhydrate/"
+    },
+    "dge_fibre": {
+      "title": "DGE dietary fibre, including explanatory footnote b",
+      "version": "2021 derivation",
+      "url": "https://www.dge.de/wissenschaft/referenzwerte/ballaststoffe"
+    },
+    "dge_sfa": {
+      "title": "DGE fat guideline FAQ",
+      "version": "current 2026-10-16",
+      "url": "https://www.dge.de/gesunde-ernaehrung/faq/fettleitline/"
+    },
+    "dge_sodium": {
+      "title": "DGE sodium reference values",
+      "version": "2016 derivation",
+      "url": "https://www.dge.de/wissenschaft/referenzwerte/natrium/"
+    },
+    "dge_salt": {
+      "title": "DGE sugar, salt and fat advice",
+      "version": "current 2026-10-16",
+      "url": "https://www.dge.de/gesunde-ernaehrung/gut-essen-und-trinken/dge-empfehlungen/suesses-salziges-und-fettiges"
+    },
+    "dge_sugars": {
+      "title": "DAG/DDG/DGE free-sugar consensus",
+      "version": "2018",
+      "url": "https://www.dge.de/fileadmin/dok/gesunde-ernaehrung/ernaehrungsempfehlung/10-regeln/Konsensuspapier_Zucker_DAG_DDG_DGE_2018.pdf"
+    },
+    "dge_meals": {
+      "title": "DGE Job&Fit, quarter allocation",
+      "version": "current 2026-10-16",
+      "url": "https://www.jobundfit.de/fachinformationen/faq"
+    },
+    "ch_table": {
+      "title": "BLV Swiss nutrient reference table (official anonymous-session query)",
+      "version": "2022 framework; adult and >65-year tables checked 2026-10-16",
+      "url": "https://kwk.blv.admin.ch/naehrstofftabelle-en/"
+    },
+    "ch_nutrients": {
+      "title": "BLV Swiss Food Composition Database nutrient definitions",
+      "version": "2026-07-16",
+      "url": "https://www.naehrwertdaten.ch/de/nahrstoffe/"
+    },
+    "ch_salt": {
+      "title": "BLV salt reduction advice",
+      "version": "current 2026-10-16",
+      "url": "https://www.blv.admin.ch/de/salzreduktion"
+    },
+    "ch_sugar_definition": {
+      "title": "SGE carbohydrate recommendations explicitly defining free sugars including added sugars",
+      "version": "2023, slide 6; cites BLV Swiss reference values 2022",
+      "url": "https://www.sge-ssn.ch/media/ct_protected_attachments/1938d4c4817bdb753412b6dc80881e/Kohlenhydrate-2023.pdf"
+    },
+    "cn_tables": {
+      "title": "CNS DRIs original age/sex tables",
+      "version": "2023, tables 9–14 and 20–23",
+      "url": "https://www.cnsoc.org/drpostand/"
+    },
+    "cn_tables2": {
+      "title": "CNS DRIs tables, page 2",
+      "version": "2023",
+      "url": "https://www.cnsoc.org/drpostand/page2.html"
+    },
+    "cn_meals": {
+      "title": "Chinese Dietary Guidelines, principle 6",
+      "version": "2022",
+      "url": "https://dg.cnsoc.org/article/04/wDCyy7cWSJCN6pwKHOo5Dw.html"
+    },
+    "nasem_energy": {
+      "title": "US/Canada EER equations and activity categories",
+      "version": "NASEM 2023; Health Canada table 2025-11-19",
+      "url": "https://www.canada.ca/en/health-canada/services/food-nutrition/healthy-eating/dietary-reference-intakes/tables/equations-estimate-energy-requirement.html"
+    },
+    "nasem_macros": {
+      "title": "US/Canada macronutrient DRIs",
+      "version": "2005 macro DRIs; current official table 2025-11-19",
+      "url": "https://www.canada.ca/en/health-canada/services/food-nutrition/healthy-eating/dietary-reference-intakes/tables/reference-values-macronutrients.html"
+    },
+    "nasem_sodium": {
+      "title": "US/Canada sodium AI and CDRR",
+      "version": "NASEM 2019; current official table",
+      "url": "https://www.canada.ca/en/health-canada/services/food-nutrition/healthy-eating/dietary-reference-intakes/tables/reference-values-elements.html"
+    },
+    "dga": {
+      "title": "Dietary Guidelines for Americans",
+      "version": "2025–2030, published 2026",
+      "url": "https://cdn.realfood.gov/DGA.pdf"
+    },
+    "who_fat": {
+      "title": "WHO fats and carbohydrates guidelines",
+      "version": "2023",
+      "url": "https://www.who.int/news/item/17-07-2023-who-updates-guidelines-on-fats-and-carbohydrates"
+    },
+    "who_sugars": {
+      "title": "WHO healthy diet recommendations",
+      "version": "current 2026-10-16",
+      "url": "https://www.who.int/health-topics/healthy-diet"
+    },
+    "who_sodium": {
+      "title": "WHO sodium reduction",
+      "version": "current 2026-10-16",
+      "url": "https://www.who.int/news-room/fact-sheets/detail/sodium-reduction"
+    },
+    "issn": {
+      "title": "ISSN position stand: protein and exercise",
+      "version": "2017, DOI 10.1186/s12970-017-0177-8",
+      "url": "https://doi.org/10.1186/s12970-017-0177-8"
+    },
+    "dge_sport": {
+      "title": "DGE protein in sport position",
+      "version": "2020",
+      "url": "https://www.dge.de/presse/meldungen/2020/positionspapier-zur-proteinzufuhr-im-sport/"
+    },
+    "acsm": {
+      "title": "AND/DC/ACSM Nutrition and Athletic Performance",
+      "version": "2016, PMID 26920240",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/26920240/"
+    },
+    "dge_sport_carbs": {
+      "title": "DGE carbohydrate position, reproducing sports-load recommendations",
+      "version": "2019, Table 1",
+      "url": "https://www.dge.de/fileadmin/dok/gesunde-ernaehrung/gezielte-ernaehrung/sportler-innen/EU11_2019_M660_M667.pdf"
+    },
+    "nih_sport": {
+      "title": "NIH ODS exercise fact sheet summarizing AND/DC/ACSM",
+      "version": "current 2026-10-16",
+      "url": "https://ods.od.nih.gov/factsheets/ExerciseAndAthleticPerformance-HealthProfessional/"
+    },
+    "nice": {
+      "title": "NICE NG246 dietary approaches",
+      "version": "2025, current revisions",
+      "url": "https://www.nice.org.uk/guidance/ng246/chapter/Physical-activity-and-diet"
+    },
+    "dag": {
+      "title": "German S3 obesity prevention and treatment, recommendations 4.8–4.10 and 5.11",
+      "version": "5.0, October 2024",
+      "url": "https://register.awmf.org/assets/guidelines/050-001l_S3_Praevention-Therapie-Adipositas_2024-10.pdf"
+    },
+    "cn_obesity": {
+      "title": "NHC Adult Obesity Dietary Guidance, pp. 5–7",
+      "version": "2024; original PDF hosted by CNS",
+      "url": "https://www.cnsoc.org/images/@cmsxh_7108bb5a-13de-4356-a2a9-50d178413c39.pdf"
+    },
+    "mifflin": {
+      "title": "Mifflin et al., original REE equation",
+      "version": "1990, PMID 2305711",
+      "url": "https://pubmed.ncbi.nlm.nih.gov/2305711/"
+    },
+    "henry": {
+      "title": "SACN Energy DRVs, Appendix 4, Henry weight/height coefficients",
+      "version": "2011, Table 18",
+      "url": "https://assets.publishing.service.gov.uk/government/uploads/system/uploads/attachment_data/file/339317/SACN_Dietary_Reference_Values_for_Energy.pdf"
+    },
+    "hall": {
+      "title": "Hall et al., Dynamic Mathematical Model of Body Weight Change in Adults",
+      "version": "2011 peer-reviewed appendix, equations 1–9",
+      "url": "https://www.niddk.nih.gov/-/media/Files/BWP/Hall_Lancet_Web_Appendix.pdf"
+    },
+    "salt_conversion": {
+      "title": "EU/Swiss nutrition-label salt equivalent convention",
+      "version": "salt = 2.5 × sodium; explicitly distinct from pure-NaCl stoichiometry",
+      "url": "https://www.naehrwertdaten.ch/de/nahrstoffe/"
+    }
+  }
+}

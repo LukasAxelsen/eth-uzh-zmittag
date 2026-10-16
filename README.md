@@ -1,24 +1,42 @@
 # Zmittag
 
-Today's menus for every ETH and UZH Mensa — calories, nutrition facts, and photos for many dishes, plus opening hours and prices. Updated automatically every morning, free, no account, no app.
+Zmittag collects lunch and dinner menus for 32 ETH Zürich and University of
+Zurich dining locations. It shows the nutrition, prices, opening times and
+photos available from the source. The site runs in a browser and can be used
+without an account.
 
 Live: <https://lukasaxelsen.github.io/eth-uzh-zmittag/>
 
-## Features
+## What the site does
 
-- Separate lunch and dinner menus with a one-tap switch
-- Nutrition per dish — kcal, protein, fat, saturated fat, carbs, sugar, salt — per 100 g and per serving where available
-- Dish photos, opening hours, and dish prices — all toggleable in the Setting panel
-- A calendar to browse menus for today and the next two weeks
-- Filter by Mensa or campus area (Central, Hoengg, Irchel, Oerlikon, Other), or save your own group of favorites
-- Light, dark, and auto theme, and a layout that works on phones
+- Switch between lunch and dinner, and browse published dates within a
+  15-day window starting today. Dates without menus are disabled.
+- Compare energy, protein, fat, saturated fat, carbohydrates, sugar, salt
+  and fiber per 100 g and per serving, with serving weight where available.
+- Select individual locations or campus groups: Central, Hoengg, Irchel,
+  Oerlikon and Other. Create or delete groups, reset them, or undo the last
+  group change without changing the selected locations.
+- Use the Mensas, My Data and Setting sidebar tabs to manage selection,
+  account sync, photos, opening times, prices and light/dark/auto appearance.
+- Copy menus for the selected date, locations and meal as plain text from
+  the raw data panel.
 
-Static site: no tracking.
+Nutrition coverage varies by location and dish. Missing values remain unknown;
+an empty menu is not treated as evidence that a location is closed. A closed
+label requires verified evidence for that location and date.
+
+The site does not include an analytics SDK. Preferences are saved in browser
+localStorage. Optional Google sign-in uses Firebase Authentication and stores
+preferences in a private Firestore document for that account. On first login
+to an existing account, the user chooses the cloud or local preferences before
+syncing. Sign-out keeps the local preferences. Dates are neither saved nor
+synced, and the current account document contains no health profile.
+See [Firebase setup and sync behavior](docs/firebase-setup.md).
 
 ## For developers
 
-- `index.txt` — one line per dish, for scripts and LLMs
-- A "raw data" panel on the site with a copy button
+- `data.json` — dated menus, source health and nutrition values
+- `index.txt` — one line per dish for today's complete roster
 - [CONTRACT.md](CONTRACT.md) — `data.json` schema, DOM class contract, and the animation contract
 - [AGENTS.md](AGENTS.md) — mandatory rules for any agent/human editing this repo (animation architecture, prohibitions, workflow)
 - `scripts/verify-anim-contract.py` — machine-checkable animation contract; run after any frontend change
@@ -32,7 +50,8 @@ Static site: no tracking.
 | [SV public menus](https://sv-gastronomie.ch/stores) | Supplements matched Cookpit dishes with published serving weights, nutrition per serving and fiber for 11 ETH restaurants, including the Polyterrasse and Alumni Lounge dinner menus. |
 | [UZH Food2050](https://app.food2050.ch) | Public weekly and dish pages, including embedded Pages Router / App Router data. Each dated dish page supplies nutrition, prices and photos. The former GraphQL endpoint is no longer used. |
 
-All sources are public; no personal account or configured secret is required.
+Menu collection uses public sources; no personal account or configured secret
+is required for the scraper.
 SV's current website configuration and standard guest session are discovered
 at build time; session tokens stay in memory. The script waits between requests
 to stay under Food2050's rate limits.
@@ -60,8 +79,12 @@ validates them with `menu_data.py`, and writes:
 - `output/data.json` — structured data for the frontend
 - `output/index.txt` — one line per dish (see [For developers](#for-developers))
 - `output/index.html`, `output/style.css`, `output/app.js` — the assembled site
+- `output/firebase-config.js`, `output/account-sync.mjs` — public Firebase
+  configuration and account sync code
 
-The frontend in `template/` is plain HTML/CSS/JS (no framework, no build).
+The frontend in `template/` is plain HTML, CSS and JavaScript. `menu.py`
+assembles the output without a frontend bundler. Account sync loads the
+Firebase SDK from Google's CDN; menu browsing does not require sign-in.
 
 ## Project layout
 
@@ -73,6 +96,11 @@ template/
   index.html                Page shell (placeholders get filled in by menu.py)
   style.css                 Apple-flat styling, light/dark/auto themes, responsive
   app.js                    Selection state, date picker, groups, settings, rendering
+  account-sync.mjs          Firebase transport and preference sync state machine
+  firebase-config.js        Public Web App configuration; no private credentials
+firestore.rules             Per-account preference access and document validation
+docs/firebase-setup.md      Firebase configuration and account behavior
+zmittag-nutrition-core/     Independent calculation module; not wired into the site
 scripts/
   verify-anim-contract.py   Machine-checkable animation contract; run after frontend changes
   verify-menu-data.py       Blocks malformed or unexpectedly empty weekday data
@@ -84,7 +112,9 @@ CONTRACT.md                 data.json schema, DOM class contract, animation cont
 
 ## Running it locally
 
-Requirements: Python 3.9+ and `curl` (used for HTTP requests); Node.js for checks. No dependencies to install.
+The site build needs Python 3.9+, `curl` and network access to the menu
+sources. It uses Python's standard library. Node.js 20+ and npm are needed
+for the browser checks; CI uses Node.js 24.
 
 ```sh
 python3 menu.py   # on Windows: py menu.py
@@ -93,11 +123,13 @@ python3 menu.py   # on Windows: py menu.py
 Then serve the `output/` directory:
 
 ```sh
-cd output
-python3 -m http.server 8000
+python3 -m http.server 8000 --bind 127.0.0.1 --directory output
 ```
 
-Open <http://localhost:8000>.
+Open <http://localhost:8000/?v=local>. Rebuild after changing templates, and
+change the query value when checking a new preview. Google sign-in also
+requires the Firebase configuration and authorized localhost domain described
+in the [setup guide](docs/firebase-setup.md).
 
 Offline regression checks (no live requests):
 
@@ -106,7 +138,9 @@ python3 scripts/test-menu.py
 python3 scripts/test-hardening.py
 node scripts/test-date.cjs
 node scripts/test-settings.cjs
+node scripts/test-account-sync.mjs
 node --check template/app.js
+node --check template/account-sync.mjs
 python3 -m py_compile menu.py menu_data.py sv_menu.py
 python3 scripts/verify-anim-contract.py
 ```
@@ -121,8 +155,20 @@ npm run test:browser
 
 The browser suite covers day selection and calendar markers, closure text,
 preferences after reload and storage upgrades, rapid date/photo/mensa toggles,
-node reuse, final layout and reduced motion. `BROWSER_EXECUTABLE` optionally
-selects an existing Chromium binary; Node 20+ is required for these tests.
+node reuse, sidebar tabs, group actions, dialogs, final layout and reduced
+motion. `BROWSER_EXECUTABLE` optionally selects an existing Chromium binary.
+Fixtures disable production Firebase; real Google login and delivery between
+devices need a separate check against the configured project.
+
+The independent nutrition calculation module has its own documentation and
+tests. It is included as source and is not currently copied into `output/`:
+
+```sh
+npm test --prefix zmittag-nutrition-core
+```
+
+See its [README](zmittag-nutrition-core/README.md) for scope, reference
+semantics and validation details.
 
 Live smoke checks are separate and opt-in:
 
@@ -144,11 +190,20 @@ python3 -m http.server 8001 --bind 127.0.0.1 --directory /tmp/menu-fixture-previ
 
 ## Deployment
 
-GitHub Actions schedules `menu.py` at 03:17 and 07:17 UTC, validates
+The [menu workflow](.github/workflows/menu.yml) runs on a schedule at 03:17
+and 07:17 UTC, or through manual dispatch. It runs `menu.py`, validates
 `output/data.json`, uploads `output/` as a GitHub Pages artifact, and deploys
 that artifact. The workflow has read-only repository access while it builds;
 only the separate deployment job can publish to Pages. The offline and browser
-regressions run before fetching live menus.
+regressions run before fetching live menus. A push alone does not trigger
+deployment; after syncing code, run **Actions → Build and deploy daily
+menus → Run workflow** on the intended branch.
+
+GitHub Pages hosts the website. Firebase provides authentication and preference
+storage only. When `firestore.rules` changes, deploy those rules to the
+configured Firebase project as described in the setup guide before publishing
+the corresponding frontend. Public Firebase configuration belongs in the
+repository; CLI credentials and service-account keys do not.
 
 Scheduled runs may be delayed. Each build preloads the next two weeks.
 UZH dates use their own ISO-week page and that day's published detail links,

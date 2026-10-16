@@ -16,6 +16,7 @@
   --border: #d2d2d7; --raw-bg: #f5f5f7;
   --thumb-bg: #1d1d1f; --thumb-text: #ffffff;  /* segmented pill + check dot */
   --accent: #0071e3;
+  --dialog-backdrop: rgb(0 0 0 / 30%);
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text",
           "Helvetica Neue", Helvetica, Arial, sans-serif;
   --content-w: 980px;
@@ -69,6 +70,7 @@
   --border: #424245; --raw-bg: #1d1d1f;
   --thumb-bg: #f5f5f7; --thumb-text: #1d1d1f;
   --accent: #2997ff;
+  --dialog-backdrop: rgb(255 255 255 / 8%);
 }
 @media (prefers-color-scheme: dark) {
   :root[data-theme="auto"], :root:not([data-theme]) {
@@ -76,6 +78,7 @@
     --border: #424245; --raw-bg: #1d1d1f;
     --thumb-bg: #f5f5f7; --thumb-text: #1d1d1f;
     --accent: #2997ff;
+    --dialog-backdrop: rgb(255 255 255 / 8%);
   }
 }
 
@@ -108,7 +111,7 @@ body {
 /* smooth cross-fade on dark-mode switch */
 body, .header, #selector, .segmented, .seg-option, .mensa-title,
 #raw-toggle, #raw-panel, .footer, .menu-btn, .menu-btn::before,
-.menu-btn::after, .mensa-check, .group-add input,
+.menu-btn::after, .mensa-check, .group-editor,
 .nutrition-table td, .nutrition-table th {
   transition: background-color .3s var(--ease), color .3s var(--ease), border-color .3s var(--ease);
 }
@@ -472,8 +475,7 @@ body.menu-open #menu-btn {
 .selector-columns {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 20px 22px 32px;
+  padding: 0 22px 32px;
 }
 .selector-pane + .selector-pane {
   margin-top: 14px;
@@ -483,8 +485,8 @@ body.menu-open #menu-btn {
    no hairline above it, just breathing room. */
 .selector-pane.settings-pane {
   border-top: none;
-  margin-top: 10px;
-  padding-top: 10px;
+  margin-top: 0;
+  padding-top: 0;
 }
 .selector-pane-title {
   margin: 0 0 6px;
@@ -493,6 +495,139 @@ body.menu-open #menu-btn {
   text-transform: uppercase;
   letter-spacing: 0.1em;
   color: var(--sub);
+}
+
+/* Sidebar pages use the SAME pill, thumb and option rules as Appearance. */
+.sidebar-head {
+  display: flex;
+  justify-content: center;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 20px 22px 18px;
+  background: var(--bg);
+}
+.segmented.sidebar-tabs { --seg-count: 3; margin-top: 0; }
+.sidebar-tabs[data-tab="data"] { --seg-index: 1; }
+.sidebar-tabs[data-tab="setting"] { --seg-index: 2; }
+.sidebar-page { min-width: 0; }
+.sidebar-page[hidden] { display: none; }
+.sidebar-page[aria-hidden="true"] { pointer-events: none; }
+.settings-pane .appearance { display: flex; width: max-content; margin-right: auto; margin-left: auto; }
+.groups-heading { display: flex; align-items: center; gap: 2px; margin-bottom: 6px; }
+.groups-heading .selector-pane-title { margin: 0 6px 0 0; }
+.sidebar-text {
+  min-height: 36px;
+  padding: 0 6px;
+  color: var(--accent);
+  background: none;
+  border: none;
+  font-size: 13px;
+  cursor: pointer;
+}
+.sidebar-text:hover { text-decoration: underline; }
+.sidebar-icon {
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  width: 36px;
+  height: 36px;
+  color: var(--accent);
+  background: none;
+  border: none;
+  border-radius: var(--r-circle);
+  cursor: pointer;
+  transition: background-color .25s var(--ease), color .25s var(--ease);
+}
+.sidebar-icon:hover { background: var(--raw-bg); }
+.sidebar-icon:disabled { color: var(--sub); cursor: default; }
+.sidebar-icon svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.65; stroke-linecap: round; stroke-linejoin: round; }
+.account-pane { display: grid; grid-template-columns: 40px minmax(0, 1fr); column-gap: 12px; align-items: center; padding: 4px 0; text-align: left; }
+.account-avatar {
+  position: relative;
+  display: block;
+  width: 40px;
+  height: 40px;
+  align-self: start;
+  overflow: hidden;
+  border: none;
+  border-radius: var(--r-circle);
+  color: var(--sub);
+  background: var(--raw-bg);
+  cursor: pointer;
+}
+.account-avatar > svg { width: 32px; height: 32px; fill: none; stroke: currentColor; stroke-width: 1.6; }
+#account-photo { position: absolute; inset: 0; }
+#account-photo img { display: block; width: 100%; height: 100%; object-fit: cover; }
+.account-name { font-size: 15px; line-height: 22px; font-weight: 600; overflow-wrap: anywhere; }
+.account-action {
+  min-height: 28px;
+  padding: 2px 0;
+  color: var(--accent);
+  font-size: 14px;
+  background: none;
+  border: none;
+  border-radius: var(--r-md);
+  cursor: pointer;
+}
+.account-action:hover { text-decoration: underline; }
+.account-action:disabled { color: var(--sub); cursor: default; }
+.account-status { grid-column: 2; margin-top: 6px; color: var(--sub); font-size: 13px; line-height: 1.6; }
+.account-retry { grid-column: 2; justify-self: start; margin-top: 12px; }
+.account-signout { display: block; font-size: 13px; }
+.account-signout[hidden] { display: none; }
+.account-login { font-size: 15px; }
+
+/* One alert surface for confirmation, account choices and connection errors.
+   Native dialog supplies focus containment and an inert background. */
+.sidebar-dialog {
+  position: fixed;
+  inset: 0;
+  width: min(320px, calc(100% - 40px));
+  max-height: calc(100dvh - 40px);
+  margin: auto;
+  padding: 0;
+  overflow-y: auto;
+  border: none;
+  box-shadow: none;
+  border-radius: var(--r-lg);
+  color: var(--text);
+  background: var(--bg);
+  font-family: var(--font);
+  text-align: center;
+  transform-origin: center;
+}
+.anim-ready .sidebar-dialog[open] { animation: dialog-pop .46s var(--ease) both; }
+/* Small overshoot and a long settle, following Apple's spring guidance.
+   Only this modal surface scales; content keeps its layout-only pipeline. */
+@keyframes dialog-pop {
+  0% { transform: scale(.88); }
+  60% { transform: scale(1.025); }
+  80% { transform: scale(.997); }
+  100% { transform: scale(1); }
+}
+.sidebar-dialog::backdrop { background: var(--dialog-backdrop); }
+.sidebar-dialog-copy { padding: 26px 24px 22px; }
+.sidebar-dialog h2 { font-size: 17px; font-weight: 600; letter-spacing: -.02em; }
+.sidebar-dialog p { margin-top: 10px; color: var(--body); font-size: 13px; line-height: 1.55; white-space: pre-line; }
+.sidebar-dialog-actions { display: flex; flex-direction: column; gap: 4px; padding: 0 8px 8px; }
+.sidebar-dialog-actions button {
+  min-height: 48px;
+  padding: 12px 20px;
+  border: none;
+  border-radius: var(--r-md);
+  background: transparent;
+  color: var(--accent);
+  font-size: 15px;
+  cursor: pointer;
+  transition: background-color .2s var(--ease), color .2s var(--ease);
+}
+.sidebar-dialog-actions button:hover,
+.sidebar-dialog-actions button:focus-visible { background: var(--thumb-bg); color: var(--thumb-text); }
+.sidebar-dialog-actions .dialog-cancel { font-weight: 600; }
+@media (max-width: 767px) {
+  .sidebar-head { padding-top: max(62px, calc(env(safe-area-inset-top) + 48px)); }
+  .sidebar-icon { width: 44px; height: 44px; }
 }
 
 /* 4a. Mensa list (scrollable) */
@@ -559,14 +694,13 @@ body.menu-open #menu-btn {
    hover/press, the container colour transitions on selection, and the
    active chip gets a subtle scale pop — the M3 container-transform
    feel, matched to the site's 450ms content choreography. */
-.group-rows { display: flex; flex-wrap: wrap; gap: 8px; }
+.group-rows { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .group-chip {
   position: relative;
   overflow: hidden;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 13px;
+  padding: 0;
   font-size: 13px;
   font-weight: 500;
   color: var(--text);
@@ -601,7 +735,9 @@ body.menu-open #menu-btn {
   transform: scale(1.04);
 }
 .group-chip.active .chip-count { color: inherit; opacity: .85; }
-.group-chip:disabled { opacity: .4; cursor: default; }
+.chip-apply { position: relative; display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 5px 13px; border: none; border-radius: inherit; background: none; color: inherit; font: inherit; cursor: pointer; }
+.chip-apply:disabled { color: var(--sub); cursor: default; }
+.group-chip:focus-within { overflow: visible; }
 .group-chip .chip-name,
 .group-chip .chip-x { position: relative; }  /* above the state layer */
 .group-chip .chip-count {
@@ -611,31 +747,42 @@ body.menu-open #menu-btn {
   color: var(--sub);
   font-variant-numeric: tabular-nums;
 }
-.group-chip.custom .chip-x {
+.group-chip .chip-x {
+  position: absolute;
+  right: 7px;
+  top: 50%;
+  transform: translateY(-50%);
+  visibility: hidden;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 16px; height: 16px;
-  margin-left: 2px;
-  font-size: 13px;
+  font-size: 17px;
   line-height: 1;
-  color: var(--sub);
+  color: inherit;
+  background: none;
+  border: none;
   border-radius: var(--r-circle);
   cursor: pointer;
 }
-.group-chip.custom .chip-x:hover { color: var(--text); background: var(--border); }
-
-.group-add {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 10px;
-  padding-top: 6px;
+.group-chip:hover .chip-x,
+.group-chip:focus-within .chip-x { visibility: visible; }
+.group-chip:hover .chip-count,
+.group-chip:focus-within .chip-count { visibility: hidden; }
+.group-chip .chip-x:hover { background: var(--border); color: var(--text); }
+@media (hover: none) {
+  .group-chip .chip-x { visibility: visible; }
+  .chip-apply { padding-right: 31px; }
+  .group-chip:hover .chip-count,
+  .group-chip:focus-within .chip-count { visibility: visible; }
 }
-.group-add input {
-  flex: 1;
+
+.group-editor {
+  width: 144px;
   min-width: 0;
-  padding: 6px 0;
+  max-width: 100%;
+  min-height: 34px;
+  padding: 4px 13px;
   /* 16px — NOT 12: iOS Safari auto-zooms the page when an input with
      font-size < 16px gains focus (the "typing zooms the viewport"
      bug). 16px is the standard fix (WebKit behaviour); the hairline
@@ -643,22 +790,27 @@ body.menu-open #menu-btn {
   font-size: 16px;
   color: var(--text);
   background: transparent;
-  border: none;
-  border-bottom: 1px solid var(--border);  /* hairline only — no box */
+  border: 1px solid var(--accent);
+  border-radius: var(--r-pill);
 }
-.group-add input::placeholder { color: var(--sub); }
-.group-add input:focus { border-bottom-color: var(--accent); }
-.group-add button {
-  padding: 5px 10px;
-  font-size: 12px;
-  font-weight: 500;
+.group-editor:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.group-add-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  font-size: 22px;
+  line-height: 1;
   color: var(--accent);
   background: none;
   border: none;
-  border-radius: var(--r-md);
+  border-radius: var(--r-pill);
   cursor: pointer;
 }
-.group-add button:hover { background: var(--raw-bg); }
+.group-add-chip:hover { background: var(--raw-bg); }
+#group-add-msg { display: block; margin-top: 8px; color: var(--sub); font-size: 12px; }
+#group-add-msg:empty { display: none; }
 
 /* 5. Content: sections & dishes.
    max-width is a RELATIVE value (min(content, 100%)) so it follows the
@@ -1058,7 +1210,8 @@ html .mensa-section.no-meal-slot .hours-line-wrap { max-height: 16px; }
   body.menu-open #menu-btn { transform: translateX(calc(100vw - 60px)); }
   .segmented { margin-top: 18px; }
   .seg-option { min-width: 82px; padding: 6px 14px; }
-  .selector-columns { padding: 16px 20px 28px; }
+  .selector-columns { padding: 0 20px 28px; }
+  .sidebar-head { padding-right: 20px; padding-left: 20px; }
   #content { padding: 0 20px 64px; }
   .mensa-section { padding: 28px 0 4px; }
   .dish { padding: 26px 0; }

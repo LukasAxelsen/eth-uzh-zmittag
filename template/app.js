@@ -92,11 +92,24 @@ let prefs = {
   prices: true,
   theme: 'light',
   customGroups: {},
+  hiddenGroups: new Set(),
   collapsedMensas: new Set(),
 };
 
 // Most recently built filtered raw text (what the copy button copies).
 let rawFiltered = '';
+
+// Sidebar navigation, single-step group history and shared prompt state.
+let sidebarTab = 'mensas';
+const sidebarPages = new Map(); // cached DOM references, never rendering state
+let groupsUndo = null;
+let groupInput = '';
+let groupEditing = false;
+let groupMessage = '';
+let sidebarDialog = null;
+let dialogReturnFocus = null;
+let account = { user: null, status: 'signed-out' };
+let accountSync = null;
 
 /* ------------------------------------------------------------
    3. Persistence (localStorage)
@@ -104,45 +117,54 @@ let rawFiltered = '';
 
 /** Read + sanitize stored prefs; fall back to defaults on any error. */
 function loadPrefs() {
-  const p = { meal: 'Lunch', selected: new Set(), photos: true, openingTimes: true, prices: true, theme: 'light', customGroups: {}, collapsedMensas: new Set() };
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return p;
-    const parsed = JSON.parse(raw);
-    if (parsed.meal === 'Lunch' || parsed.meal === 'Dinner') p.meal = parsed.meal;
-    if (Array.isArray(parsed.selected)) p.selected = new Set(parsed.selected.map(String));
-    if (typeof parsed.photos === 'boolean') p.photos = parsed.photos;
-    if (typeof parsed.openingTimes === 'boolean') p.openingTimes = parsed.openingTimes;
-    if (typeof parsed.prices === 'boolean') p.prices = parsed.prices;
-    if (parsed.theme === 'light' || parsed.theme === 'dark' || parsed.theme === 'auto') p.theme = parsed.theme;
-    if (parsed.customGroups && typeof parsed.customGroups === 'object' && !Array.isArray(parsed.customGroups)) {
-      for (const [name, ids] of Object.entries(parsed.customGroups)) {
-        if (Array.isArray(ids)) p.customGroups[String(name)] = ids.map(String);
-      }
-    }
-    if (Array.isArray(parsed.collapsedMensas)) p.collapsedMensas = new Set(parsed.collapsedMensas.map(String));
+    return sanitizePrefs(raw ? JSON.parse(raw) : {});
   } catch (err) {
     console.warn('Could not read prefs; using defaults.', err);
+    return sanitizePrefs({});
   }
+}
+
+/** One schema for local storage and authenticated cloud preferences. */
+function sanitizePrefs(value) {
+  const p = { meal: 'Lunch', selected: new Set(), photos: true, openingTimes: true, prices: true, theme: 'light', customGroups: Object.create(null), hiddenGroups: new Set(), collapsedMensas: new Set() };
+  const parsed = value && typeof value === 'object' ? value : {};
+  if (parsed.meal === 'Lunch' || parsed.meal === 'Dinner') p.meal = parsed.meal;
+  if (Array.isArray(parsed.selected)) p.selected = new Set(parsed.selected.map(String));
+  if (typeof parsed.photos === 'boolean') p.photos = parsed.photos;
+  if (typeof parsed.openingTimes === 'boolean') p.openingTimes = parsed.openingTimes;
+  if (typeof parsed.prices === 'boolean') p.prices = parsed.prices;
+  if (parsed.theme === 'light' || parsed.theme === 'dark' || parsed.theme === 'auto') p.theme = parsed.theme;
+  if (parsed.customGroups && typeof parsed.customGroups === 'object' && !Array.isArray(parsed.customGroups)) {
+    for (const [name, ids] of Object.entries(parsed.customGroups)) {
+      if (Array.isArray(ids)) p.customGroups[String(name)] = ids.map(String);
+    }
+  }
+  if (Array.isArray(parsed.collapsedMensas)) p.collapsedMensas = new Set(parsed.collapsedMensas.map(String));
+  if (Array.isArray(parsed.hiddenGroups)) p.hiddenGroups = new Set(parsed.hiddenGroups.filter(name => typeof name === 'string'));
   return p;
 }
 
+function serializePrefs() {
+  return {
+    meal: prefs.meal, selected: Array.from(prefs.selected),
+    photos: prefs.photos, openingTimes: prefs.openingTimes, prices: prefs.prices,
+    theme: prefs.theme, customGroups: JSON.parse(JSON.stringify(prefs.customGroups)),
+    hiddenGroups: Array.from(prefs.hiddenGroups),
+    collapsedMensas: Array.from(prefs.collapsedMensas),
+  };
+}
+
 /** Serialize prefs back to localStorage. */
-function savePrefs() {
+function savePrefs(sync = true) {
+  const value = serializePrefs();
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({
-      meal: prefs.meal,
-      selected: Array.from(prefs.selected),
-      photos: prefs.photos,
-      openingTimes: prefs.openingTimes,
-      prices: prefs.prices,
-      theme: prefs.theme,
-      customGroups: prefs.customGroups,
-      collapsedMensas: Array.from(prefs.collapsedMensas),
-    }));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(value));
   } catch (err) {
     console.warn('Could not save prefs.', err);
   }
+  if (sync && accountSync) accountSync.save(value);
 }
 
 /* ------------------------------------------------------------
@@ -200,7 +222,7 @@ function normalizeMensas(raw) {
 }
 
 /** Drop stale ids (closed mensas etc.), default selection to Central. */
-function validatePrefsAgainstData() {
+function validatePrefsAgainstData(useDefault = true) {
   const ids = new Set(activeMensas().map((m) => m.id));
 
   prefs.selected = new Set(Array.from(prefs.selected).filter((id) => ids.has(id)));
@@ -213,11 +235,11 @@ function validatePrefsAgainstData() {
   prefs.collapsedMensas = new Set(Array.from(prefs.collapsedMensas).filter((id) => ids.has(id)));
 
   // No stored selection (or all of it went stale) -> default: all Central.
-  if (!prefs.selected.size) {
+  if (useDefault && !prefs.selected.size) {
     prefs.selected = new Set(mensasInGroup('Central').map((m) => m.id));
   }
 
-  savePrefs();
+  savePrefs(false);
 }
 
 /* ---------- mensa/group lookup helpers ---------- */
@@ -354,7 +376,10 @@ const FLIP_CONTAINERS = () => [
   document.getElementById('content'),
   document.querySelector('.selector-mensas'),
   document.querySelector('.group-rows'),
-];
+  document.getElementById('sidebar-pages'),
+  document.getElementById('sidebar-dialog-content'),
+  document.getElementById('account-photo'),
+].filter(Boolean);
 
 /** Full re-render of everything derived from state — the ONE render entry
     point. Order: snapshot every container -> mutate all DOM (reconciles
@@ -386,6 +411,7 @@ function renderAll() {
     }
   }
   const snapshots = FLIP_CONTAINERS().map((c) => [c, flipFirst(c)]);
+  renderSidebar();
   updateDateHeading();
   if (calMonth) renderCalendar();
   updateSegmented();
@@ -396,6 +422,7 @@ function renderAll() {
   renderSelector();
   const oldH = content.getBoundingClientRect().height;
   renderContent();
+  updateCollapsedSections();
   updateHoursLines(); // sections survive meal switches — refresh the text
   applyPhotos(); // idempotent <img> sync — BEFORE the height measurement:
                 // fresh dishes insert photos at natural height so newH
@@ -420,6 +447,7 @@ function renderAll() {
     settleContentHeight(content); // also clears any stale timer/listener
   }
   updateRawText();
+  renderSidebarDialog();
   for (const [c, first] of snapshots) flipPlay(c, first);
 }
 
@@ -474,6 +502,9 @@ function animationsAllowed() {
     offset — otherwise overlapping FLIP passes would compute wrong deltas. */
 function flipFirst(container) {
   const first = new Map();
+  // Hidden tab panels have no layout to snapshot. Their first visible
+  // positions must never be interpreted as movement from zero.
+  if (container.closest('[hidden]') || container.matches('[data-motion="instant"]')) return first;
   for (const child of container.children) {
     if (child.getAnimations) {
       for (const a of child.getAnimations()) {
@@ -490,6 +521,7 @@ function flipFirst(container) {
     `first`) are skipped — they run their own enter animation. */
 function flipPlay(container, first) {
   if (!animationsAllowed()) return;
+  if (container.closest('[hidden]') || container.matches('[data-motion="instant"]')) return;
   // A container with entering/exiting nodes skips FLIP entirely: the
   // enter/exit height transitions drive layout continuously (siblings
   // slide with the growth/shrink). FLIP here would measure the
@@ -520,7 +552,7 @@ function flipPlay(container, first) {
     every new section/dish/chip enters this way — no per-feature wiring.
     Call right after the node is inserted and populated. */
 function animateEnter(node) {
-  if (!animationsAllowed() || !node.isConnected) return;
+  if (!animationsAllowed() || !node.isConnected || node.closest('[hidden]')) return;
   node.dataset.entering = '1';
   // Zero the vertical padding NOW, before the first paint: border-box
   // height:0 alone leaves the padding as a visible strip (prohibition
@@ -617,7 +649,7 @@ function animateExit(node) {
     }
     delete node.dataset.entering;
   }
-  if (!animationsAllowed()) { node.remove(); return; }
+  if (!animationsAllowed() || node.closest('[hidden]')) { node.remove(); return; }
   node.dataset.exiting = '1';
   const cur = getComputedStyle(node).transition;
   const h = node.offsetHeight; // natural height (before shrinking)
@@ -750,6 +782,7 @@ function reconcileChildren(container, keys, makeEl, doFlip, enter = true) {
     if (node && node.dataset.exiting) reviveExit(node);
     if (!node) {
       node = makeEl(key);
+      if (node.dataset.exiting) reviveExit(node);
       node.dataset.key = key;
       container.insertBefore(node, nextLiveChild(container, targetIdx, keep) || null);
       added.push(node);
@@ -822,11 +855,11 @@ function onPhotoToggleClick() {
 /* Opening-times / prices settings: state changes join renderAll;
    CSS owns the max-height strips and their presentation. */
 function updateOpeningToggle() {
+  document.documentElement.classList.toggle('show-opening', prefs.openingTimes);
   const row = document.getElementById('opening-row');
   if (!row) return;
   row.classList.toggle('selected', prefs.openingTimes);
   row.setAttribute('aria-pressed', String(prefs.openingTimes));
-  document.documentElement.classList.toggle('show-opening', prefs.openingTimes);
 }
 
 function onOpeningToggleClick() {
@@ -836,11 +869,11 @@ function onOpeningToggleClick() {
 }
 
 function updatePriceToggle() {
+  document.documentElement.classList.toggle('show-prices', prefs.prices);
   const row = document.getElementById('price-row');
   if (!row) return;
   row.classList.toggle('selected', prefs.prices);
   row.setAttribute('aria-pressed', String(prefs.prices));
-  document.documentElement.classList.toggle('show-prices', prefs.prices);
 }
 
 function onPriceToggleClick() {
@@ -872,7 +905,131 @@ function onAppearanceClick(e) {
   savePrefs();
   // Theme variables change on <html>; the CSS transition on body/colors
   // cross-fades the palette (smooth dark-mode switch).
-  updateAppearance();
+  renderAll();
+}
+
+/* ---------- sidebar rendering (all pages and prompts share renderAll) ---------- */
+
+function renderSidebar() {
+  const tabs = document.getElementById('sidebar-tabs');
+  tabs.dataset.tab = sidebarTab;
+  for (const btn of tabs.querySelectorAll('[data-tab]')) {
+    const active = btn.dataset.tab === sidebarTab;
+    btn.classList.toggle('active', active);
+    btn.setAttribute('aria-selected', String(active));
+    btn.tabIndex = active ? 0 : -1;
+  }
+  const pages = document.getElementById('sidebar-pages');
+  // Keep all panels mounted. Switching only changes visibility, so neither
+  // the panel nor its already-rendered children can grow/slide on a tab swap.
+  reconcileChildren(pages, ['mensas', 'data', 'setting'], (key) => {
+    if (!sidebarPages.has(key)) {
+      sidebarPages.set(key, document.getElementById('sidebar-template-' + key).content.firstElementChild.cloneNode(true));
+    }
+    return sidebarPages.get(key);
+  }, false, false);
+  for (const page of pages.children) {
+    const inactive = page.dataset.key !== sidebarTab;
+    page.hidden = inactive;
+    page.inert = inactive;
+    page.setAttribute('aria-hidden', String(inactive));
+  }
+  const undo = document.getElementById('groups-undo');
+  if (undo) undo.disabled = groupsUndo === null;
+  const message = document.getElementById('group-add-msg');
+  if (message) message.textContent = groupMessage;
+  renderAccount();
+}
+
+function renderAccount() {
+  const user = account.user;
+  const busy = ['connecting', 'signing-in', 'signing-out'].includes(account.status);
+  const choice = account.status === 'choice';
+  const name = document.getElementById('account-name');
+  name.textContent = user ? user.displayName || 'Google account' : '';
+  name.hidden = !user;
+  const login = document.getElementById('account-login');
+  login.hidden = !!user;
+  login.disabled = busy;
+  login.textContent = busy ? 'Connecting…' : 'Login';
+  const avatar = document.getElementById('account-avatar');
+  avatar.disabled = !!user || busy;
+  avatar.setAttribute('aria-label', user ? 'Google account avatar' : 'Sign in with Google');
+  const photo = user && /^https:\/\//.test(user.photoURL || '') ? user.photoURL : '';
+  reconcileChildren(document.getElementById('account-photo'), photo ? [photo] : [], () => {
+    const img = document.createElement('img');
+    img.src = photo;
+    img.alt = '';
+    img.referrerPolicy = 'no-referrer';
+    return img;
+  }, false, false);
+  const action = document.getElementById('account-action');
+  action.hidden = !user || (!choice && !['error', 'offline'].includes(account.status));
+  action.disabled = busy;
+  action.textContent = choice ? 'Choose preferences' : 'Retry sync';
+  const messages = {
+    'signed-out': '', unavailable: '',
+    connecting: 'Connecting…', 'signing-in': 'Signing in…', 'signing-out': 'Signing out…',
+    choice: 'Choose which preferences to use before syncing.',
+    syncing: '', synced: '',
+    offline: 'Offline. Changes stay on this device and sync when you reconnect.',
+    error: 'Could not sync. Your preferences are safe on this device.',
+  };
+  const status = document.getElementById('account-status');
+  const message = messages[account.status] || '';
+  status.textContent = message;
+  status.hidden = !message;
+  const signout = document.getElementById('account-signout');
+  signout.hidden = !user;
+  signout.disabled = busy;
+}
+
+function sidebarDialogSpec() {
+  if (sidebarDialog.kind === 'reset') return {
+    title: 'Reset groups?',
+    description: 'Restore the default groups and remove your custom groups. Your selected mensas will stay the same. You can undo this change.',
+    actions: [['reset', 'Reset groups'], ['cancel', 'Cancel']],
+  };
+  if (sidebarDialog.kind === 'conflict') return {
+    title: 'Which preferences?',
+    description: 'This Google account already has saved preferences. Choose which to use on all your devices.\n\nThis includes meal time, mensas, groups and settings.',
+    actions: [['cloud', 'Use cloud preferences'], ['local', 'Use this device'], ['cancel', 'Not now']],
+  };
+  return {
+    title: sidebarDialog.title || 'Could not connect',
+    description: sidebarDialog.message || 'Please try again. Your preferences are saved on this device.',
+    actions: [['cancel', 'OK']],
+  };
+}
+
+function renderSidebarDialog() {
+  const dialog = document.getElementById('sidebar-dialog');
+  const container = document.getElementById('sidebar-dialog-content');
+  if (!sidebarDialog) {
+    if (dialog.open) {
+      dialog.close();
+      if (dialogReturnFocus && dialogReturnFocus.isConnected) dialogReturnFocus.focus({ preventScroll: true });
+    }
+    // The dialog is now hidden: discard its previous prompt silently so a
+    // later prompt cannot briefly duplicate IDs or leave old action buttons.
+    reconcileChildren(container, [], () => null, false, false);
+    return;
+  }
+  const spec = sidebarDialogSpec();
+  // Prompt contents join keyed reconciliation, just like sidebar pages.
+  reconcileChildren(container, [JSON.stringify(sidebarDialog)], () => {
+    const surface = document.createElement('div');
+    surface.innerHTML = '<div class="sidebar-dialog-copy"><h2 id="sidebar-dialog-title">' + esc(spec.title) +
+      '</h2><p id="sidebar-dialog-description">' + esc(spec.description) + '</p></div>' +
+      '<div class="sidebar-dialog-actions">' + spec.actions.map(([action, label]) =>
+        '<button type="button" data-dialog-action="' + action + '"' +
+        (action === 'cancel' ? ' class="dialog-cancel" autofocus' : '') + '>' + esc(label) + '</button>').join('') + '</div>';
+    return surface;
+  }, false, false);
+  if (!dialog.open) {
+    dialogReturnFocus = document.activeElement;
+    dialog.showModal();
+  }
 }
 
 /* ---------- selector: mensa list (left column) ---------- */
@@ -893,6 +1050,7 @@ function mensaRowHTML(m) {
 
 function renderMensaList() {
   const container = document.querySelector('.selector-mensas');
+  if (!container) return;
   // Keyed reconcile: rows are keyed by mensa id, so toggling a selection
   // reuses the DOM node (only the .selected class flips via CSS) and the
   // list never re-renders wholesale. Same pipeline as #content.
@@ -900,7 +1058,7 @@ function renderMensaList() {
     const row = document.createElement('div');
     row.innerHTML = mensaRowHTML(mensaById(key));
     return row.firstChild;
-  });
+  }, false);
   refreshMensaRows(); // sync .selected class on (possibly reused) rows
 }
 
@@ -920,22 +1078,20 @@ function refreshMensaRows() {
 /* ---------- selector: group chips (horizontal filter chips) ---------- */
 
 function groupRowHTML(g) {
-  // Material-style filter chip: click applies the group (replaces the
-  // current selection with its members); custom chips carry a delete (x).
+  // Separate sibling buttons keep apply/delete keyboard-accessible without
+  // nesting an interactive element inside another button.
   const count = g.members.length;
-  return '<button class="group-chip' + (g.custom ? ' custom' : '') + '" type="button"' +
-    (count ? '' : ' disabled') +
-    ' data-group="' + esc(g.name) + '" aria-label="Apply group ' + esc(g.name) + '">' +
+  return '<div class="group-chip" data-group="' + esc(g.name) + '">' +
+    '<button class="chip-apply" type="button"' + (count ? '' : ' disabled') +
+    ' aria-label="Apply group ' + esc(g.name) + '">' +
     '<span class="chip-name">' + esc(g.name) + '</span>' +
-    '<span class="chip-count">' + count + '</span>' +
-    (g.custom
-      ? '<span class="chip-x" role="button" tabindex="-1" aria-label="Delete group ' + esc(g.name) + '">&times;</span>'
-      : '') +
-    '</button>';
+    '<span class="chip-count">' + count + '</span></button>' +
+    '<button class="chip-x" type="button" aria-label="Delete group ' + esc(g.name) + '">&times;</button></div>';
 }
 
 function renderGroupList() {
   const container = document.querySelector('.group-rows');
+  if (!container) return;
 
   // Build the FULL group catalog: default groups (fixed order), then every
   // data group not covered, then custom groups. members comes from
@@ -947,7 +1103,7 @@ function renderGroupList() {
   const groups = [];
   const seen = new Set();
   const pushGroup = (name, custom) => {
-    if (!name || seen.has(name)) return;   // dedupe (defensive)
+    if (!name || seen.has(name) || prefs.hiddenGroups.has(name)) return;
     seen.add(name);
     groups.push({ name, members: groupMembers(name), custom });
   };
@@ -958,11 +1114,36 @@ function renderGroupList() {
   // Keyed reconcile: chips are keyed by group name, so adding/removing a
   // custom group slides the remaining chips into place (FLIP) instead of
   // rebuilding the whole row with a flash.
-  reconcileChildren(container, groups.map((g) => g.name), (key) => {
+  const keys = groups.map((g) => 'group:' + g.name);
+  if (groupEditing) keys.push('group-editor');
+  keys.push('group-add');
+  reconcileChildren(container, keys, (key) => {
+    if (key === 'group-editor') {
+      const input = document.createElement('input');
+      input.id = 'group-input';
+      input.className = 'group-editor';
+      input.type = 'text';
+      input.maxLength = 60;
+      input.autocomplete = 'off';
+      input.setAttribute('aria-label', 'Group name');
+      input.setAttribute('aria-describedby', 'group-add-msg');
+      return input;
+    }
+    if (key === 'group-add') {
+      const button = document.createElement('button');
+      button.id = 'group-add-btn';
+      button.className = 'group-add-chip';
+      button.type = 'button';
+      button.textContent = '+';
+      button.setAttribute('aria-label', 'Add group');
+      return button;
+    }
     const chip = document.createElement('div');
-    chip.innerHTML = groupRowHTML(groups.find((g) => g.name === key));
+    chip.innerHTML = groupRowHTML(groups.find((g) => 'group:' + g.name === key));
     return chip.firstChild;
-  });
+  }, false);
+  const input = document.getElementById('group-input');
+  if (input && input.value !== groupInput) input.value = groupInput;
 
   // Active state: the group whose members exactly match the current
   // selection is highlighted (CSS transition, no rebuild).
@@ -971,6 +1152,10 @@ function renderGroupList() {
     g.members.every((id) => prefs.selected.has(id));
   container.querySelectorAll('.group-chip').forEach((chip) => {
     const g = groups.find((x) => x.name === chip.dataset.group);
+    if (g) {
+      chip.querySelector('.chip-count').textContent = g.members.length;
+      chip.querySelector('.chip-apply').disabled = !g.members.length;
+    }
     chip.classList.toggle('active', !!(g && active(g)));
   });
 }
@@ -1362,6 +1547,22 @@ function updateRawText() {
 
 /* ---------- collapse animation (max-height) ---------- */
 
+/** Local and synced collapse state share the existing disclosure primitive. */
+function updateCollapsedSections() {
+  for (const section of document.querySelectorAll('#content .mensa-section:not(.no-meal-slot)')) {
+    const collapsed = prefs.collapsedMensas.has(section.dataset.mensa);
+    if (section.classList.contains('collapsed') === collapsed) continue;
+    const body = section.querySelector('.mensa-dishes');
+    if (body) {
+      body.style.maxHeight = collapsed ? body.scrollHeight + 'px' : '0px';
+      if (collapsed) collapseBody(body);
+    }
+    section.classList.toggle('collapsed', collapsed);
+    section.querySelector('.mensa-title').setAttribute('aria-expanded', String(!collapsed));
+    if (body && !collapsed) expandBody(body);
+  }
+}
+
 /** Instantly settle a node to its natural height: cancel any inline
     height transition and drop the inline height (no animation). Used
     to coalesce rapid wholesale swaps — the old glide's mid-flight
@@ -1509,51 +1710,29 @@ function bindEvents() {
   document.getElementById('cal-next').addEventListener('click', () => onCalendarNav(1));
   document.getElementById('cal-grid').addEventListener('click', onCalendarGridClick);
 
-  const appearanceSeg = document.getElementById('appearance-seg');
-  appearanceSeg.addEventListener('click', onAppearanceClick);
-  appearanceSeg.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      onAppearanceClick(e);
-    }
+  // Delegation keeps cached/reconciled page nodes wired exactly once.
+  document.getElementById('sidebar-tabs').addEventListener('click', onSidebarTabClick);
+  document.getElementById('sidebar-tabs').addEventListener('keydown', onSidebarTabKeydown);
+  const selector = document.getElementById('selector');
+  selector.addEventListener('click', onSidebarClick);
+  selector.addEventListener('keydown', onSidebarKeydown);
+  selector.addEventListener('input', (e) => {
+    if (e.target.id === 'group-input') { groupInput = e.target.value; renderAll(); }
   });
-
-  const photoRow = document.getElementById('photo-row');
-  photoRow.addEventListener('click', onPhotoToggleClick);
-  photoRow.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      onPhotoToggleClick();
-    }
+  selector.addEventListener('focusout', (e) => {
+    if (e.target.id !== 'group-input' || !groupEditing) return;
+    if (groupInput.trim()) addCustomGroup();
+    else cancelGroupInput();
   });
-
-  const openingRow = document.getElementById('opening-row');
-  openingRow.addEventListener('click', onOpeningToggleClick);
-  openingRow.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      onOpeningToggleClick();
-    }
+  const dialog = document.getElementById('sidebar-dialog');
+  dialog.addEventListener('click', onSidebarDialogClick);
+  dialog.addEventListener('cancel', (e) => {
+    e.preventDefault();
+    sidebarDialog = null;
+    renderAll();
   });
-
-  const priceRow = document.getElementById('price-row');
-  priceRow.addEventListener('click', onPriceToggleClick);
-  priceRow.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter' || e.key === ' ') {
-      e.preventDefault();
-      onPriceToggleClick();
-    }
-  });
-
-  const mensaList = document.querySelector('.selector-mensas');
-  mensaList.addEventListener('click', onMensaListClick);
-  mensaList.addEventListener('keydown', onMensaListKeydown);
-
-  document.querySelector('.selector-groups').addEventListener('click', onGroupsClick);
-  document.getElementById('group-add-btn').addEventListener('click', addCustomGroup);
-  document.getElementById('group-input').addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') addCustomGroup();
-  });
+  window.addEventListener('online', () => { if (accountSync) accountSync.retry(); });
+  window.addEventListener('offline', () => { if (accountSync) accountSync.offline(); });
 
   const content = document.getElementById('content');
   content.addEventListener('click', onContentClick);
@@ -1567,10 +1746,148 @@ function bindEvents() {
 
   // Esc closes the drawer (accessibility best practice).
   document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape' && document.body.classList.contains('menu-open')) {
+    if (e.key === 'Escape' && !sidebarDialog && !document.getElementById('sidebar-dialog').open && document.body.classList.contains('menu-open')) {
       closeSelector();
     }
   });
+}
+
+function onSidebarTabClick(e) {
+  const btn = e.target.closest('[data-tab]');
+  if (!btn || sidebarTab === btn.dataset.tab) return;
+  sidebarTab = btn.dataset.tab;
+  renderAll();
+}
+
+function onSidebarTabKeydown(e) {
+  const keys = ['ArrowLeft', 'ArrowRight', 'Home', 'End'];
+  if (!keys.includes(e.key)) return;
+  e.preventDefault();
+  const names = ['mensas', 'data', 'setting'];
+  let index = names.indexOf(sidebarTab);
+  if (e.key === 'Home') index = 0;
+  else if (e.key === 'End') index = 2;
+  else index = (index + (e.key === 'ArrowRight' ? 1 : 2)) % 3;
+  sidebarTab = names[index];
+  renderAll();
+  document.getElementById('sidebar-tab-' + sidebarTab).focus();
+}
+
+function onSidebarClick(e) {
+  if (e.target.closest('#appearance-seg')) return onAppearanceClick(e);
+  if (e.target.closest('.selector-mensas')) return onMensaListClick(e);
+  if (e.target.closest('.selector-groups .group-chip')) return onGroupsClick(e);
+  const btn = e.target.closest('[id]');
+  const actions = {
+    'photo-row': onPhotoToggleClick, 'opening-row': onOpeningToggleClick,
+    'price-row': onPriceToggleClick, 'group-add-btn': beginGroupInput,
+    'groups-reset': () => { sidebarDialog = { kind: 'reset' }; renderAll(); },
+    'groups-undo': undoGroups, 'account-avatar': onAccountAction,
+    'account-action': onAccountAction, 'account-login': onAccountAction,
+    'account-signout': () => accountSync && accountSync.signOut(),
+  };
+  // closest('[id]') may hit the avatar's image holder; use its button.
+  const target = e.target.closest('button, .photo-row');
+  const action = target && actions[target.id];
+  if (btn && action) action();
+}
+
+function onSidebarKeydown(e) {
+  if (e.target.id === 'group-input' && e.key === 'Enter') { e.preventDefault(); addCustomGroup(); return; }
+  if (e.target.id === 'group-input' && e.key === 'Escape') {
+    e.preventDefault(); e.stopPropagation(); cancelGroupInput();
+    document.getElementById('group-add-btn').focus();
+    return;
+  }
+  if (!['Enter', ' '].includes(e.key)) return;
+  if (e.target.closest('.selector-mensas')) return onMensaListKeydown(e);
+  if (e.target.closest('.photo-row')) { e.preventDefault(); onSidebarClick(e); }
+}
+
+function onSidebarDialogClick(e) {
+  const btn = e.target.closest('[data-dialog-action]');
+  if (!btn) return;
+  const action = btn.dataset.dialogAction;
+  sidebarDialog = null;
+  if (action === 'reset') resetGroups();
+  else if (action === 'cloud' || action === 'local') accountSync.resolveConflict(action);
+  renderAll();
+}
+
+function rememberGroups() {
+  groupsUndo = { customGroups: JSON.parse(JSON.stringify(prefs.customGroups)), hiddenGroups: Array.from(prefs.hiddenGroups) };
+}
+
+function resetGroups() {
+  rememberGroups();
+  prefs.customGroups = Object.create(null);
+  prefs.hiddenGroups.clear();
+  groupEditing = false;
+  groupInput = '';
+  savePrefs();
+}
+
+function undoGroups() {
+  if (groupsUndo === null) return;
+  prefs.customGroups = Object.assign(Object.create(null), groupsUndo.customGroups);
+  prefs.hiddenGroups = new Set(groupsUndo.hiddenGroups);
+  groupsUndo = null;
+  savePrefs();
+  renderAll();
+}
+
+function onAccountAction() {
+  if (account.status === 'choice') {
+    sidebarDialog = { kind: 'conflict' };
+    renderAll();
+  } else if (!accountSync) {
+    if (window.ZMITTAG_FIREBASE_CONFIG && account.status === 'error') { initAccountSync(); return; }
+    sidebarDialog = { kind: 'unavailable', title: 'Account sync is not ready',
+      message: 'You can keep using your preferences on this device. Google sign-in will be available once account sync is connected.' };
+    renderAll();
+  } else if (account.user) accountSync.retry();
+  else accountSync.signIn();
+}
+
+function onAccountChange(next) {
+  const wasChoice = account.status === 'choice';
+  account = next;
+  if (next.status === 'choice' && !wasChoice && !sidebarDialog) sidebarDialog = { kind: 'conflict' };
+  if (next.status !== 'choice' && sidebarDialog && sidebarDialog.kind === 'conflict') sidebarDialog = null;
+  if (!sidebarDialog && next.issue && next.issue !== 'auth/popup-closed-by-user' && next.issue !== 'auth/cancelled-popup-request') {
+    sidebarDialog = { kind: 'connection-error', message: next.issue === 'auth/popup-blocked'
+      ? 'Your browser blocked the sign-in window. Allow pop-ups for this site and try again.'
+      : 'Please check your connection and try again. Your preferences are saved on this device.' };
+  }
+  if (data) renderAll();
+}
+
+async function initAccountSync() {
+  const config = window.ZMITTAG_FIREBASE_CONFIG;
+  if (!config || !config.apiKey || !config.projectId || !config.appId || !config.authDomain) {
+    onAccountChange({ user: null, status: 'unavailable' });
+    return;
+  }
+  onAccountChange({ user: null, status: 'connecting' });
+  try {
+    const { connectFirebase, createPreferenceSync } = await import('./account-sync.mjs?v=VER_PLACEHOLDER');
+    const adapter = await connectFirebase(config);
+    accountSync = createPreferenceSync(adapter, {
+      readPrefs: serializePrefs,
+      applyPrefs: (value) => {
+        const next = sanitizePrefs(value);
+        if (JSON.stringify(next.customGroups) !== JSON.stringify(prefs.customGroups) ||
+            JSON.stringify(Array.from(next.hiddenGroups)) !== JSON.stringify(Array.from(prefs.hiddenGroups))) groupsUndo = null;
+        prefs = next;
+        validatePrefsAgainstData(false);
+      },
+      onChange: onAccountChange,
+      storage: localStorage,
+    });
+    accountSync.start();
+  } catch (err) {
+    onAccountChange({ user: null, status: 'error', issue: err.code || 'connection-failed' });
+  }
 }
 
 /** Follow midnight only while browsing today; preserve explicit date browsing. */
@@ -1687,7 +2004,7 @@ function toggleCalendar() {
 }
 
 function onCalendarKeydown(e) {
-  if (e.key === 'Escape') toggleCalendar();
+  if (e.key === 'Escape' && !sidebarDialog) toggleCalendar();
 }
 
 /** Render the calendar grid for calMonth: weekday-aligned cells with
@@ -1796,11 +2113,11 @@ function toggleMensa(id) {
 }
 
 function onGroupsClick(e) {
-  // The chip's (x) deletes a custom group without applying it.
+  // Delete never applies the group or changes selected mensas.
   const x = e.target.closest('.chip-x');
   if (x) {
     const chip = x.closest('.group-chip');
-    if (chip) deleteCustomGroup(chip.dataset.group);
+    if (chip) deleteGroup(chip.dataset.group);
     return;
   }
   // Clicking a chip applies the group: the selection is replaced by
@@ -1819,10 +2136,25 @@ function applyGroup(name) {
   savePrefs();
 }
 
-function deleteCustomGroup(name) {
-  delete prefs.customGroups[name];
+function deleteGroup(name) {
+  rememberGroups();
+  if (Object.hasOwn(prefs.customGroups, name)) delete prefs.customGroups[name];
+  else prefs.hiddenGroups.add(name);
   savePrefs();
   renderAll(); // chips reconcile + FLIP; selected rows already updated
+}
+
+function beginGroupInput() {
+  groupEditing = true;
+  renderAll();
+  document.getElementById('group-input').focus({ preventScroll: true });
+}
+
+function cancelGroupInput() {
+  groupEditing = false;
+  groupInput = '';
+  groupMessage = '';
+  renderAll();
 }
 
 /** Create a custom group whose members = currently selected mensas.
@@ -1832,8 +2164,7 @@ function deleteCustomGroup(name) {
     renderGroupList dedupes by name, so a shadowing custom group would
     silently replace the real one. */
 function addCustomGroup() {
-  const input = document.getElementById('group-input');
-  const name = input.value.trim();
+  const name = groupInput.trim();
   if (!name) {
     showGroupMsg('Enter a group name');
     return;
@@ -1842,19 +2173,22 @@ function addCustomGroup() {
     showGroupMsg('That name is reserved');
     return;
   }
+  rememberGroups();
   prefs.customGroups[name] = Array.from(prefs.selected);
+  groupEditing = false;
+  groupInput = '';
+  groupMessage = '';
   savePrefs();
   renderAll();
-  input.value = '';
-  showGroupMsg('');
+  document.getElementById('group-add-btn').focus({ preventScroll: true });
 }
 
 let groupMsgTimer = null;
 function showGroupMsg(text) {
-  const msg = document.getElementById('group-add-msg');
-  msg.textContent = text;
+  groupMessage = text;
   clearTimeout(groupMsgTimer);
-  if (text) groupMsgTimer = setTimeout(() => { msg.textContent = ''; }, 2000);
+  renderAll();
+  if (text) groupMsgTimer = setTimeout(() => { groupMessage = ''; renderAll(); }, 2000);
 }
 
 /** Content-level click delegation: mensa titles collapse/expand. */
@@ -1883,34 +2217,9 @@ function onContentKeydown(e) {
 function toggleSection(section) {
   if (section.classList.contains('no-meal-slot')) return;
   const id = section.dataset.mensa;
-  const collapsed = prefs.collapsedMensas.has(id);
-  const body = section.querySelector('.mensa-dishes');
-  const title = section.querySelector('.mensa-title');
-
-  if (collapsed) {
-    prefs.collapsedMensas.delete(id);
-    // Lock the body's inline max-height at 0 BEFORE removing the
-    // 'collapsed' class, so dropping the CSS max-height:0 rule can't
-    // jump the body to 'none' (instant full open). expandBody then
-    // animates from the locked 0 to scrollHeight — symmetric with the
-    // collapse-side lock (first-expand flash regression).
-    if (body) body.style.maxHeight = '0px';
-    section.classList.remove('collapsed');
-    if (body) expandBody(body);
-  } else {
-    prefs.collapsedMensas.add(id);
-    // Lock the body's inline max-height BEFORE adding 'collapsed' class,
-    // so the CSS rule max-height:0 cannot flash-clip the content.
-    // collapseBody then animates from the locked concrete value.
-    if (body) body.style.maxHeight = body.scrollHeight + 'px';
-    section.classList.add('collapsed');
-    if (body) collapseBody(body);
-  }
-  // aria-expanded reflects the POST-toggle state — reading prefs again
-  // (mutated above), not the captured `collapsed`: the old code used
-  // !collapsed, which inverted the attribute on every toggle (a section
-  // that just collapsed announced aria-expanded=true to screen readers).
-  if (title) title.setAttribute('aria-expanded', String(!prefs.collapsedMensas.has(id)));
+  if (prefs.collapsedMensas.has(id)) prefs.collapsedMensas.delete(id);
+  else prefs.collapsedMensas.add(id);
+  renderAll();
   savePrefs();
 }
 
@@ -1983,6 +2292,7 @@ async function init() {
     animEnabled = true; // from here on, user interactions animate
     document.documentElement.classList.add('anim-ready'); // CSS transitions live
     updateSegmented();
+    initAccountSync();
   } catch (err) {
     console.error(err);
     document.getElementById('content').innerHTML =
