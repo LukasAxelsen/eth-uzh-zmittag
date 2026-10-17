@@ -4,10 +4,10 @@ const vm = require('node:vm');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const source = fs.readFileSync(path.join(__dirname, '../template/app.js'), 'utf8')
-  .replace(/\ninit\(\);\s*$/, '')
-  .replace("await import('./nutrition.mjs?v=VER_PLACEHOLDER')", 'testNutritionCore');
+  .replace(/\ninit\(\);\s*$/, '');
+const catalog = (code) => JSON.parse(fs.readFileSync(path.join(__dirname, `../template/i18n/${code}.json`), 'utf8'));
 
-async function boot(instant, days) {
+async function boot(instant, days, stored = { selected: ['uzh-untere-mensa'] }) {
   let now = instant;
   class FixedDate extends Date {
     constructor(...args) { super(...(args.length ? args : [now])); }
@@ -18,16 +18,21 @@ async function boot(instant, days) {
   const grid = { get innerHTML() { return gridHtml; }, set innerHTML(value) { gridWrites++; gridHtml = value; } };
   const elements = { 'date-heading': heading, 'cal-grid': grid, 'cal-title': {}, 'cal-note': {} };
   const context = vm.createContext({
-    testNutritionCore: await import('../template/nutrition.mjs'),
+    testModules: [await import('../template/nutrition.mjs'), await import('../template/i18n.mjs')],
     Date: FixedDate, Intl, console, setTimeout, clearTimeout,
     window: { matchMedia: () => ({ matches: false }) },
-    document: { title: '', getElementById: (id) => elements[id] || heading, documentElement: { classList: { add() {} } } },
-    fetch: async () => ({ ok: true, json: async () => ({ date: '2026-10-12', days }) }),
-    localStorage: { getItem: () => JSON.stringify({ selected: ['uzh-untere-mensa'] }), setItem() {} },
+    document: { title: '', getElementById: (id) => elements[id] || heading, querySelectorAll: () => [],
+      documentElement: { classList: { add() {} } } },
+    fetch: async (url) => ({ ok: true, json: async () => {
+      const lang = /^i18n\/([\w-]+)\.json/.exec(url);
+      return lang ? catalog(lang[1]) : { date: '2026-10-12', days };
+    } }),
+    localStorage: { getItem: () => JSON.stringify(stored), setItem() {} },
   });
   vm.runInContext(source, context);
   vm.runInContext(`
     bindEvents = () => {};
+    loadModules = async () => testModules;
     renderAll = () => { updateDateHeading(); if (calMonth) renderCalendar(); };
     updateSegmented = () => {};
   `, context);
@@ -75,5 +80,15 @@ const days = { '2026-10-12': { mensas: [mensa('Yesterday')] }, '2026-10-13': { m
   app.setTime('2026-10-13T22:01:00Z');
   vm.runInContext('refreshCurrentDate()', app.context);
   assert.equal(vm.runInContext('selectedDate', app.context), '2026-10-12');
-  console.log('PASS: today at boot, missing data, Zurich DST, and midnight rollover');
+
+  // The heading and calendar follow the stored language; Latin uses its own month forms.
+  app = await boot('2026-10-13T10:00:00Z', days, { selected: ['uzh-untere-mensa'], language: 'de' });
+  assert.equal(app.heading.textContent, 'Dienstag, 13. Oktober');
+  vm.runInContext('calMonth = "2026-10-01"; renderCalendar()', app.context);
+  assert.match(app.grid.innerHTML, /aria-label="Dienstag, 13\. Oktober"/);
+  app = await boot('2026-10-13T10:00:00Z', days, { language: 'la' });
+  assert.equal(app.heading.textContent, 'Dies Martis, 13 Octobris');
+  app = await boot('2026-10-13T10:00:00Z', days, { language: 'ja' });
+  assert.equal(app.heading.textContent, '10月13日（火曜日）');
+  console.log('PASS: today at boot, missing data, Zurich DST, midnight rollover, localized headings');
 })().catch((err) => { console.error(err); process.exitCode = 1; });

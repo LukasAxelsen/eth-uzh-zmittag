@@ -11,11 +11,16 @@ const root = path.resolve(__dirname, '..');
 const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'menu-browser-'));
 const server = http.createServer((req, res) => {
   const name = new URL(req.url, 'http://localhost').pathname.slice(1) || 'index.html';
-  if (!['index.html', 'app.js', 'firebase-config.js', 'account-sync.mjs', 'nutrition.mjs', 'nutrition-core/core.mjs', 'nutrition-core/hall.mjs', 'nutrition-core/reference-data.mjs', 'style.css', 'data.json', 'index.txt'].includes(name)) { res.writeHead(404).end(); return; }
-  res.setHeader('Content-Type', (/\.(m?js)$/.test(name) ? 'text/javascript' : ({'style.css': 'text/css', 'data.json': 'application/json'})[name]) || 'text/html');
+  if (!['index.html', 'app.js', 'firebase-config.js', 'account-sync.mjs', 'nutrition.mjs', 'i18n.mjs', 'nutrition-core/core.mjs', 'nutrition-core/hall.mjs', 'nutrition-core/reference-data.mjs', 'style.css', 'data.json', 'index.txt'].includes(name) &&
+      !/^i18n\/[\w-]+\.json$/.test(name)) { res.writeHead(404).end(); return; }
+  res.setHeader('Content-Type', (/\.(m?js)$/.test(name) ? 'text/javascript' : /\.json$/.test(name) ? 'application/json' : ({'style.css': 'text/css'})[name]) || 'text/html');
   if (name === 'firebase-config.js') { res.end('window.ZMITTAG_FIREBASE_CONFIG = null;'); return; }
   res.end(fs.readFileSync(path.join(directory, name)));
 });
+
+const LANGUAGE_LABELS = ['Chinese (Simplified) · 简体中文', 'Chinese (Traditional) · 繁體中文', 'Danish · Dansk', 'English',
+  'French · Français', 'German · Deutsch', 'Italian · Italiano', 'Japanese · 日本語', 'Latin · Latina', 'Swiss German · Schwiizertüütsch'];
+const LANGUAGE_CODES = ['zh-Hans', 'zh-Hant', 'da', 'en', 'fr', 'de', 'it', 'ja', 'la', 'gsw'];
 
 async function settle(page) {
   await page.waitForFunction(() => !document.querySelector('#content [data-entering], #content [data-exiting], #content [data-photo-closing]') &&
@@ -283,7 +288,8 @@ async function verifyNutrition(browser, url) {
     if (process.env.NUTRITION_SCREENSHOTS) await page.screenshot({path: path.join(process.env.NUTRITION_SCREENSHOTS, `nutrition-profile-${width}.png`)});
     await sidebar(page, 'Setting');
     assert.deepEqual(await page.locator('#sidebar-page-setting h3').allTextContents(), ['General','Appearance','Language']);
-    assert.equal(await page.locator('#site-language option').count(), 1);
+    assert.deepEqual(await page.locator('#site-language option').allTextContents(), LANGUAGE_LABELS);
+    assert.equal(await page.locator('#site-language').inputValue(), 'en');
     assert.equal(await page.getByText('Display language', {exact: true}).count(), 0);
     assert.equal(await page.getByText('Some guidelines do not define energy').count(), 0);
     for (const standard of ['efsa','us_nasem','who','issn','ch_blv']) await page.locator('#nutrition-settings-standard').selectOption(standard);
@@ -307,6 +313,123 @@ async function verifyNutrition(browser, url) {
     await context.close();
   }
   console.log('PASS: nutrition — persisted profile, Total-only bars, reference semantics, invalid/recovered inputs, cached calculations, reused dishes/meters, standard switches, 320/390px, dark mode and reduced motion');
+}
+
+/** Visible text or labels that are raw catalog keys (a missing translation path). */
+function leakedKeys(page) {
+  return page.evaluate(() => {
+    const key = /^[a-z][A-Za-z0-9_]*(\.[A-Za-z0-9_]+)+$/;
+    const leaks = [];
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    while (walker.nextNode()) if (key.test(walker.currentNode.textContent.trim())) leaks.push(walker.currentNode.textContent.trim());
+    for (const el of document.querySelectorAll('[aria-label], [title], [aria-valuetext]')) {
+      for (const attr of ['aria-label', 'title', 'aria-valuetext']) if (key.test(el.getAttribute(attr) || '')) leaks.push(attr + '=' + el.getAttribute(attr));
+    }
+    return leaks;
+  });
+}
+
+async function verifyLanguages(browser, url) {
+  const context = await browser.newContext({viewport: {width: 1280, height: 900}});
+  await context.addInitScript(() => {
+    if (!localStorage.getItem('eth-uzh-nutrition-prefs')) localStorage.setItem('eth-uzh-nutrition-prefs', JSON.stringify({selected: ['eth-9'], photos: false,
+      userProfile: {ageYears: 30, sex: 'male', heightCm: 180, weightKg: 75, activity: {pal: 1.6}}}));
+  });
+  const page = await context.newPage();
+  const errors = []; page.on('pageerror', error => errors.push(error.message));
+  await page.clock.install({time: new Date('2026-10-14T10:00:00Z')});
+  await page.goto(url); await page.waitForSelector('html.anim-ready');
+  assert.equal(await page.locator('html').getAttribute('lang'), 'en', 'an English browser starts in English');
+  const dish = page.locator('#content [data-mensa="eth-9"] .dish').filter({has: page.getByText('Piccata Milanese', {exact: true})});
+  const dishNode = await dish.elementHandle();
+  const meter = await dish.locator('[data-nutrient="protein"] .nutrient-coverage').elementHandle();
+  const menuText = await page.locator('#content [data-mensa="eth-9"]').evaluate(el => [el.querySelector('.mensa-name').textContent,
+    ...[...el.querySelectorAll('.dish-label, .dish-name, .dish-desc')].map(node => node.textContent)]);
+  const raw = await page.locator('#raw-text').textContent();
+  await sidebar(page, 'Setting');
+  await page.locator('#site-language').selectOption('de');
+  await page.waitForFunction(() => document.documentElement.lang === 'de');
+  await settle(page);
+  assert.deepEqual(await page.locator('#sidebar-tabs [role="tab"]').allTextContents(), ['Mensen', 'Profil', 'Optionen']);
+  assert.deepEqual(await page.locator('.header .seg-option').allTextContents(), ['Mittag', 'Abend']);
+  assert.equal(await page.locator('#date-heading').innerText(), 'Mittwoch, 14. Oktober');
+  assert.deepEqual(await page.locator('#sidebar-page-setting h3').allTextContents(), ['Allgemein', 'Darstellung', 'Sprache']);
+  assert.deepEqual(await dish.locator('thead th').allTextContents(), ['Nährwerte', 'pro 100 g', 'Gesamt']);
+  assert.equal(await dish.locator('.n-label').first().innerText(), 'Energie');
+  assert.equal(await dish.locator('[data-nutrient="protein"] .coverage-track').getAttribute('aria-label'), 'Protein · Abdeckung Mittag');
+  assert.match(await dish.locator('[data-nutrient="protein"] .coverage-track').getAttribute('aria-valuetext'), /Planungsreferenz für Mahlzeiten/);
+  assert.equal(await dishNode.evaluate(node => node.isConnected), true, 'language switches reuse dish nodes');
+  assert.equal(await meter.evaluate(node => node.isConnected), true, 'and their coverage meters');
+  assert.deepEqual(await page.locator('#content [data-mensa="eth-9"]').evaluate(el => [el.querySelector('.mensa-name').textContent,
+    ...[...el.querySelectorAll('.dish-label, .dish-name, .dish-desc')].map(node => node.textContent)]), menuText, 'menu data keeps its source language');
+  assert.equal(await page.locator('#raw-text').textContent(), raw, 'raw/AI text keeps the index.txt format');
+  assert.match(await page.locator('#nutrition-settings-standard-hint').innerText(), /^Schweizer \(Wikipedia, offizielle Website\) BLV gibt/);
+  assert.equal(await page.locator('#nutrition-settings-standard option:checked').innerText(), 'Schweizer BLV');
+  assert.deepEqual(await page.locator('#site-language option').allTextContents(), LANGUAGE_LABELS, 'language names never translate');
+  await sidebar(page, 'Mensen');
+  assert.equal(await page.getByRole('button', {name: 'Gruppe Central anwenden', exact: true}).count(), 1);
+  assert.equal(await page.locator('#groups-undo').getAttribute('title'), 'Gruppenänderung rückgängig machen');
+  await sidebar(page, 'Profil');
+  assert.equal(await page.locator('label[for="nutrition-profile-ageYears"]').innerText(), 'Alter');
+  assert.equal(await page.locator('label[for="nutrition-profile-ageYears"] + .field-entry .field-unit').innerText(), 'Jahre');
+  await page.locator('#nutrition-profile-ageYears').fill('30.5');
+  assert.equal(await page.locator('#nutrition-profile-ageYears-error').innerText(), 'Gib eine ganze Zahl von 0 bis 120 ein.');
+  await page.locator('#nutrition-profile-ageYears').fill('30');
+  await settle(page);
+  assert.deepEqual(await leakedKeys(page), []);
+  if (process.env.LANGUAGE_SCREENSHOTS) await page.screenshot({path: path.join(process.env.LANGUAGE_SCREENSHOTS, 'language-de-1280.png')});
+  await page.reload(); await page.waitForSelector('html.anim-ready');
+  assert.equal(await page.locator('html').getAttribute('lang'), 'de', 'the choice persists');
+  assert.equal(await page.locator('#date-heading').innerText(), 'Mittwoch, 14. Oktober');
+  assert.equal(await page.locator('#raw-toggle').innerText(), 'Rohdaten anzeigen');
+  await page.locator('#raw-toggle').click();
+  assert.equal(await page.locator('#raw-toggle').innerText(), 'Rohdaten ausblenden');
+  assert.deepEqual(errors, []);
+  await context.close();
+
+  // Every language at the narrowest width: no leaked keys, nothing wider than the screen.
+  const narrow = await browser.newContext({viewport: {width: 320, height: 800}});
+  const small = await narrow.newPage();
+  small.on('pageerror', error => errors.push(error.message));
+  await small.clock.install({time: new Date('2026-10-14T10:00:00Z')});
+  for (const [index, label] of LANGUAGE_LABELS.entries()) {
+    const code = LANGUAGE_CODES[index];
+    await small.goto(url);
+    await small.evaluate(language => localStorage.setItem('eth-uzh-nutrition-prefs', JSON.stringify({selected: ['eth-9', 'eth-1'], photos: false,
+      userProfile: {ageYears: 30, sex: 'male', heightCm: 180, weightKg: 75, activity: {pal: 1.6}}, language})), code);
+    await small.reload(); await small.waitForSelector('html.anim-ready');
+    assert.equal(await small.locator('html').getAttribute('lang'), code, label);
+    await small.locator('#date-trigger').click();
+    await settle(small);
+    const page320 = await small.evaluate(() => ({
+      page: document.documentElement.scrollWidth <= innerWidth,
+      meal: document.querySelector('.header .segmented').getBoundingClientRect().right <= innerWidth,
+      calendar: document.querySelector('.calendar-inner').scrollWidth <= document.querySelector('.calendar-inner').clientWidth,
+    }));
+    assert.deepEqual(page320, {page: true, meal: true, calendar: true}, `${label} page fits 320px`);
+    if (process.env.LANGUAGE_SCREENSHOTS) await small.screenshot({path: path.join(process.env.LANGUAGE_SCREENSHOTS, `language-${code}-320-page.png`)});
+    await small.locator('#menu-btn').click();
+    for (const tab of ['mensas', 'data', 'setting']) {
+      await small.locator('#sidebar-tab-' + tab).click();
+      const fit = await small.evaluate(() => ({
+        drawer: document.getElementById('selector').scrollWidth <= document.getElementById('selector').clientWidth,
+        tabs: document.getElementById('sidebar-tabs').getBoundingClientRect().right <= innerWidth,
+      }));
+      assert.deepEqual(fit, {drawer: true, tabs: true}, `${label} drawer fits 320px on ${tab}`);
+    }
+    // The sliding thumb assumes equal one-line segments: a wrapping label misaligns it.
+    const wrapped = await small.evaluate(() => [...document.querySelectorAll('.seg-option')].filter((option) => {
+      const range = document.createRange();
+      range.selectNodeContents(option);
+      return new Set([...range.getClientRects()].map((rect) => Math.round(rect.top))).size > 1 || option.scrollWidth > option.clientWidth + 1;
+    }).map((option) => option.textContent));
+    assert.deepEqual(wrapped, [], `${label} segmented labels stay on one line at 320px`);
+    assert.deepEqual(await leakedKeys(small), [], label);
+    if (process.env.LANGUAGE_SCREENSHOTS) await small.screenshot({path: path.join(process.env.LANGUAGE_SCREENSHOTS, `language-${code}-320-setting.png`)});
+  }
+  assert.deepEqual(errors, []);
+  await narrow.close();
+  console.log('PASS: languages — in-place switch, reused dishes/meters, untouched menu data and raw text, translated nutrition, errors and labels, persistence, all 10 languages at 320px');
 }
 
 (async () => {
@@ -401,6 +524,7 @@ async function verifyNutrition(browser, url) {
     await verifySidebar(browser, url);
     await verifyAccountUI(browser, url);
     await verifyNutrition(browser, url);
+    await verifyLanguages(browser, url);
 
     const reduced = await browser.newContext({reducedMotion: 'reduce'});
     const reducedPage = await reduced.newPage();

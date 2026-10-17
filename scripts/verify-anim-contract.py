@@ -12,6 +12,7 @@ in; fix it before committing. This is the machine-readable half of the
 contract — the human-readable half lives in AGENTS.md.
 """
 
+import json
 import re
 import subprocess
 import sys
@@ -21,6 +22,13 @@ ROOT = Path(__file__).resolve().parent.parent
 JS = (ROOT / "template" / "app.js").read_text(encoding="utf-8")
 CSS = (ROOT / "template" / "style.css").read_text(encoding="utf-8")
 HTML = (ROOT / "template" / "index.html").read_text(encoding="utf-8")
+# UI text lives in the English source catalog (scripts/verify-i18n-contract.py).
+EN = json.loads((ROOT / "template" / "i18n" / "en.json").read_text(encoding="utf-8"))
+
+
+def says(key, text):
+    """app.js renders catalog key `key`, whose English text is `text`."""
+    return f"t('{key}'" in JS and EN.get(key, "").startswith(text)
 
 FAILURES = []
 
@@ -353,7 +361,7 @@ check("price slide driven by show-prices setting (no parens)",
 check("opening hours rendered from record (hours-line + setting)",
       "hours-line" in JS and "hours-pop" not in JS and
       "hours-dot" not in JS and
-      "Not open today" in JS and "(m.opening || {})" in JS)
+      says("content.notOpen", "Not open today") and "(m.opening || {})" in JS)
 check("normalizeMensas keeps opening (hours regression guard)",
       "m.opening" in JS[JS.index("function normalizeMensas"):JS.index("function validatePrefsAgainstData")])
 check("settings rows bound (opening-row / price-row)",
@@ -365,10 +373,10 @@ check("opening/prices handlers use the unified pipeline",
       "renderAll();" in section("function onPriceToggleClick", ["/* ---------- appearance"]))
 check("empty slots: no caret/body, state-based empty or confirmed-closed text",
       "no-meal-slot" in JS and
-      "No meals available" in JS and
+      says("content.noMealsSlot", "No meals available") and
       "emptyServiceText(m)" in JS[JS.index("function updateHoursLines"):JS.index("function dishKey")] and
       "emptyServiceText(m)" in JS[JS.index("function mensaSectionHTML"):JS.index("function updateHoursLines")] and
-      "confirmed_closed" in JS and "Closed today" in JS and
+      "confirmed_closed" in JS and says("content.closedReason", "Closed today") and
       "slotClosed ? '' : body" in JS and
       "if (section.classList.contains('no-meal-slot')) return;" in JS)
 # Expand/collapse: duration scales with content height (a 3000px menu
@@ -433,6 +441,7 @@ check("groups use an inline add chip and accessible hover delete buttons",
       '.group-chip:hover .chip-x' in CSS and 'hiddenGroups' in JS)
 check("account identity has login and logout text",
       '>Login</button>' in HTML and '>Logout</button>' in HTML and
+      EN.get("account.login") == "Login" and EN.get("account.logout") == "Logout" and
       'Your preferences, on every device.' not in JS + HTML)
 dialog_css = section_css('.sidebar-dialog {', ['@media (max-width: 767px)'])
 check("dialogs have a plain surface, inset actions and center scale entrance",

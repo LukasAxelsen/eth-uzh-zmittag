@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict';
 import {test} from 'node:test';
-import {DEFAULT_NUTRITION, STANDARDS, STANDARD_NOTES, STANDARD_CLOSING, calculatePlan, coverageTargets, coverage,
-  sanitizeProfile, sanitizeNutrition, validNutritionPreferences} from '../template/nutrition.mjs';
+import {readFileSync} from 'node:fs';
+import {DEFAULT_NUTRITION, STANDARDS, STANDARD_NOTES, FieldError, PROFILE_FIELDS, calculatePlan, coverageTargets, coverage,
+  fieldValue, sanitizeProfile, sanitizeNutrition, validNutritionPreferences} from '../template/nutrition.mjs';
+const en = JSON.parse(readFileSync(new URL('../template/i18n/en.json', import.meta.url), 'utf8'));
 const profile = {ageYears: 30, sex: 'male', heightCm: 180, weightKg: 75,
   activity: {pal: 1.6, cnClass: 'moderate'}, training: {weeklyHours: 7, carbohydrateLoad: 'high'}};
 
@@ -32,7 +34,8 @@ test('reference intakes never become upper limits; salt budget takes priority ov
   assert.equal(coverage(0, targets.salt, 'salt').tone, 'met');
   assert.equal(coverage(3, targets.salt, 'salt').tone, 'high');
   assert.equal(targets.salt.ref.kind, 'maximum');
-  assert.match(targets.salt.description, /AI/);
+  assert.ok(targets.salt.references.some(r => r.type === 'AI'), 'the AI stays in the accessible description');
+  assert.equal(coverage(3, targets.salt, 'salt').statusKey, 'coverage.status.aboveBudget');
   assert.equal(coverage(100, targets.fat, 'fat').tone, 'high');
 });
 test('lunch/dinner allocation and native ISSN meal doses remain distinct', () => {
@@ -50,13 +53,21 @@ test('out-of-scope and missing profile data never display a made-up plan', () =>
 });
 test('every standard has a plain explanation and source links on its first word', () => {
   assert.deepEqual(Object.keys(STANDARD_NOTES).sort(), Object.keys(STANDARDS).sort());
-  assert.match(STANDARD_CLOSING, /not an upper limit/);
+  assert.match(en['note.closing'], /not an upper limit/);
   for (const [id, note] of Object.entries(STANDARD_NOTES)) {
-    assert.equal(note.lead, STANDARDS[id].split(' ')[0]);
-    assert.ok(note.body.length > 40, id);
+    assert.equal(en[note.leadKey], STANDARDS[id].split(' ')[0]);
+    assert.equal(en['standard.' + id], STANDARDS[id], 'English option names match the core');
+    assert.ok(en[note.bodyKey].length > 40, id);
     assert.match(note.wiki, /^https:\/\/[a-z]{2}\.wikipedia\.org\/wiki\//);
     assert.match(note.official, /^https:\/\//);
   }
+});
+test('validation failures are catalog keys, translated where they are shown', () => {
+  const age = PROFILE_FIELDS.find(field => field.key === 'ageYears');
+  assert.throws(() => fieldValue(age, '30.5'), error => error instanceof FieldError &&
+    error.key === 'error.wholeNumber' && error.params.min === 0 && error.params.max === 120 && Boolean(en[error.key]));
+  const sex = PROFILE_FIELDS.find(field => field.key === 'sex');
+  assert.throws(() => fieldValue(sex, 'other'), error => error.key === 'error.chooseOption');
 });
 test('storage upgrades, invalid values and nested remote validation', () => {
   assert.deepEqual(sanitizeNutrition(undefined), DEFAULT_NUTRITION);
