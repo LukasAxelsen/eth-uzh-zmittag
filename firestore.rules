@@ -44,8 +44,9 @@ service cloud.firestore {
     function validPreferences(p) {
       return p is map
         && p.keys().hasAll(['meal', 'selected', 'photos', 'openingTimes', 'prices', 'theme', 'customGroups', 'collapsedMensas'])
-        && p.keys().hasOnly(['meal', 'selected', 'photos', 'openingTimes', 'prices', 'theme', 'customGroups', 'hiddenGroups', 'collapsedMensas', 'userProfile', 'nutritionSettings'])
+        && p.keys().hasOnly(['meal', 'selected', 'photos', 'openingTimes', 'prices', 'theme', 'language', 'customGroups', 'hiddenGroups', 'collapsedMensas', 'userProfile', 'nutritionSettings'])
         && p.meal in ['Lunch', 'Dinner'] && p.theme in ['light', 'dark', 'auto']
+        && (!('language' in p) || p.language in ['zh-Hans', 'zh-Hant', 'da', 'en', 'fr', 'de', 'it', 'ja', 'la', 'gsw'])
         && p.photos is bool && p.openingTimes is bool && p.prices is bool
         && p.selected is list && p.selected.size() <= 64
         && p.collapsedMensas is list && p.collapsedMensas.size() <= 64

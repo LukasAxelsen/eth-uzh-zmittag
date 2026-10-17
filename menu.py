@@ -1301,9 +1301,14 @@ def publish_site(payload, *, allow_empty_today=False):
 
     with open(os.path.join(TEMPLATE_DIR, "app.js")) as f:
         files['app.js'] = f.read().replace("DATE_PLACEHOLDER", today).replace("VER_PLACEHOLDER", rev)
-    for name in ('firebase-config.js', 'account-sync.mjs', 'nutrition.mjs'):
-        with open(os.path.join(TEMPLATE_DIR, name)) as f:
+    for name in ('firebase-config.js', 'account-sync.mjs', 'nutrition.mjs', 'i18n.mjs'):
+        with open(os.path.join(TEMPLATE_DIR, name), encoding='utf-8') as f:
             files[name] = f.read().replace('../zmittag-nutrition-core/', './nutrition-core/')
+    # UI/nutrition message catalogs; scripts/verify-i18n-contract.py checks them.
+    for name in sorted(os.listdir(os.path.join(TEMPLATE_DIR, 'i18n'))):
+        if name.endswith('.json') and name != 'source.lock.json':
+            with open(os.path.join(TEMPLATE_DIR, 'i18n', name), encoding='utf-8') as f:
+                files['i18n/' + name] = f.read()
     for name in ('core.mjs', 'reference-data.mjs', 'hall.mjs'):
         with open(os.path.join(BASE, 'zmittag-nutrition-core', name)) as f:
             files['nutrition-core/' + name] = f.read()

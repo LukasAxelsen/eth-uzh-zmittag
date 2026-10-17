@@ -35,20 +35,20 @@ const DEFAULT_GROUPS = ['Central', 'Hoengg', 'Irchel'];
 // else is grams; weight only ever appears in "total".
 const NUTRI_KEYS = ['kcal', 'protein', 'fat', 'saturated', 'carbs', 'sugar', 'salt', 'fiber', 'weight'];
 
-// Nutrition table rows (9 fixed rows per contract).
+// Nutrition table rows (9 fixed rows per contract); labels are catalog keys.
 const NUTRITION_ROWS = [
-  { label: 'Energy', key: 'kcal' },
-  { label: 'Protein', key: 'protein' },
-  { label: 'Fat', key: 'fat' },
-  { label: 'Saturated fat', key: 'saturated' },
-  { label: 'Carbs', key: 'carbs' },
-  { label: 'Sugar', key: 'sugar' },
-  { label: 'Salt', key: 'salt' },
-  { label: 'Fiber', key: 'fiber' },
-  { label: 'Weight', key: 'weight' },
+  { label: 'nutrient.kcal', key: 'kcal' },
+  { label: 'nutrient.protein', key: 'protein' },
+  { label: 'nutrient.fat', key: 'fat' },
+  { label: 'nutrient.saturated', key: 'saturated' },
+  { label: 'nutrient.carbs', key: 'carbs' },
+  { label: 'nutrient.sugar', key: 'sugar' },
+  { label: 'nutrient.salt', key: 'salt' },
+  { label: 'nutrient.fiber', key: 'fiber' },
+  { label: 'nutrient.weight', key: 'weight' },
 ];
-
-const EMPTY_MEALS_TEXT = 'No meals available today.';
+const NUTRITION_HEADINGS = ['table.nutrition', 'table.per100', 'table.total'];
+const MEAL_LABELS = { Lunch: 'meal.lunch', Dinner: 'meal.dinner' };
 
 /* ------------------------------------------------------------
    2. App state
@@ -83,7 +83,7 @@ let dataDates = new Set();
 // User preferences. Sets for membership (fast lookup), plain object
 // for custom groups. Mirrors the localStorage schema exactly:
 //   { meal, selected: [ids], photos/openingTimes/prices: bool, theme: 'light'|'dark'|'auto',
-//     customGroups: {name: [ids]}, collapsedMensas: [ids] }
+//     language: code, customGroups: {name: [ids]}, collapsedMensas: [ids] }
 let prefs = {
   meal: 'Lunch',
   selected: new Set(),
@@ -91,6 +91,7 @@ let prefs = {
   openingTimes: true,
   prices: true,
   theme: 'light',
+  language: 'en',
   customGroups: {},
   hiddenGroups: new Set(),
   collapsedMensas: new Set(),
@@ -98,6 +99,8 @@ let prefs = {
 
 // Most recently built filtered raw text (what the copy button copies).
 let rawFiltered = '';
+let rawOpen = false;
+let copyFlash = false;
 
 // Sidebar navigation, single-step group history and shared prompt state.
 let sidebarTab = 'mensas';
@@ -115,6 +118,10 @@ let nutritionCache = {key: '', result: null, lunch: {}, dinner: {}, error: ''};
 const nutritionDrafts = new Map();
 let nutritionErrors = new Map();
 const dishCoverageCache = new WeakMap(); // DOM work cache; never a source of render state
+const dishTextCache = new WeakMap(); // DOM work cache: language of a reused dish's fixed labels
+let i18nCore = null;
+const catalogs = new Map(); // fetched message catalogs by language code (resource cache, not state)
+let fallbackLanguage = 'en'; // most recently loaded catalog, shown while another loads
 
 /* ------------------------------------------------------------
    3. Persistence (localStorage)
@@ -141,6 +148,11 @@ function sanitizePrefs(value) {
   if (typeof parsed.openingTimes === 'boolean') p.openingTimes = parsed.openingTimes;
   if (typeof parsed.prices === 'boolean') p.prices = parsed.prices;
   if (parsed.theme === 'light' || parsed.theme === 'dark' || parsed.theme === 'auto') p.theme = parsed.theme;
+  // No stored language yet: follow the browser's languages (first visit only).
+  if (i18nCore) {
+    p.language = i18nCore.LANGUAGE_CODES.includes(parsed.language) ? parsed.language
+      : i18nCore.matchLanguage(typeof navigator === 'undefined' ? [] : navigator.languages || [navigator.language]);
+  } else p.language = 'en';
   if (parsed.customGroups && typeof parsed.customGroups === 'object' && !Array.isArray(parsed.customGroups)) {
     for (const [name, ids] of Object.entries(parsed.customGroups)) {
       if (Array.isArray(ids)) p.customGroups[String(name)] = ids.map(String);
@@ -157,7 +169,7 @@ function serializePrefs() {
   return {
     meal: prefs.meal, selected: Array.from(prefs.selected),
     photos: prefs.photos, openingTimes: prefs.openingTimes, prices: prefs.prices,
-    theme: prefs.theme, customGroups: JSON.parse(JSON.stringify(prefs.customGroups)),
+    theme: prefs.theme, language: prefs.language, customGroups: JSON.parse(JSON.stringify(prefs.customGroups)),
     hiddenGroups: Array.from(prefs.hiddenGroups),
     collapsedMensas: Array.from(prefs.collapsedMensas),
     userProfile: JSON.parse(JSON.stringify(prefs.userProfile || {})),
@@ -363,7 +375,57 @@ function buildRawText() {
 function formatDate(iso) {
   let d = new Date(iso + 'T00:00:00');
   if (isNaN(d.getTime())) d = new Date(); // placeholder not replaced yet
-  return d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+  return t('date.heading', {
+    weekday: tList('date.weekdays')[(d.getDay() + 6) % 7],
+    month: tList('date.monthsInDate')[d.getMonth()],
+    day: d.getDate(),
+  });
+}
+
+/* ---------- localization (UI and nutrition text; menu data keeps its source language) ---------- */
+
+/** The language actually on screen: the preference once its catalog has loaded. */
+function activeLanguage() {
+  return catalogs.has(prefs.language) ? prefs.language : fallbackLanguage;
+}
+
+function t(key, params) {
+  const value = (catalogs.get(activeLanguage()) || {})[key];
+  if (typeof value !== 'string') return key;
+  return params ? value.replace(/\{(\w+)\}/g, (match, name) => (name in params ? String(params[name]) : match)) : value;
+}
+
+function tList(key) {
+  const value = (catalogs.get(activeLanguage()) || {})[key];
+  return Array.isArray(value) ? value : [];
+}
+
+/** A catalog template with {name} slots filled by text or DOM nodes (links). */
+function templateNodes(template, parts) {
+  return template.split(/\{(\w+)\}/).map((piece, i) => (i % 2 ? parts[piece] ?? '' : piece)).filter((piece) => piece !== '');
+}
+
+/** Stored message ({key, params} or verbatim {text}) in the shown language. */
+function messageText(message) {
+  if (!message) return '';
+  return message.key ? t(message.key, message.params) : message.text || '';
+}
+
+function setText(el, text) {
+  if (el && el.textContent !== text) el.textContent = text;
+}
+
+function setAttr(el, name, value) {
+  if (el && el.getAttribute(name) !== value) el.setAttribute(name, value);
+}
+
+async function loadCatalog(code) {
+  if (!catalogs.has(code)) {
+    const resp = await fetch('i18n/' + code + '.json?v=VER_PLACEHOLDER');
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    catalogs.set(code, await resp.json());
+  }
+  fallbackLanguage = code;
 }
 
 /* ------------------------------------------------------------
@@ -391,6 +453,7 @@ const FLIP_CONTAINERS = () => [
   document.getElementById('profile-fields'),
   document.getElementById('planning-fields'),
   document.getElementById('nutrition-settings-fields'),
+  document.getElementById('site-language'),
   ...document.querySelectorAll('.nutrient-progress'),
 ].filter(Boolean);
 
@@ -425,6 +488,8 @@ function renderAll() {
   }
   const snapshots = FLIP_CONTAINERS().map((c) => [c, flipFirst(c)]);
   renderSidebar();
+  updateStaticText(); // after renderSidebar: its pages must be mounted
+  renderLanguageSelect();
   updateNutritionTargets();
   renderNutritionPreferences();
   updateDateHeading();
@@ -462,6 +527,7 @@ function renderAll() {
     settleContentHeight(content); // also clears any stale timer/listener
   }
   updateRawText();
+  updateRawControls();
   renderSidebarDialog();
   for (const [c, first] of snapshots) flipPlay(c, first);
 }
@@ -470,6 +536,28 @@ function renderAll() {
 function updateDateHeading() {
   document.getElementById('date-heading').textContent = formatDate(selectedDate);
   document.title = 'Zmittag — ' + selectedDate;
+}
+
+/** Fixed markup text: [data-i18n] leaves and [data-i18n-aria-label|title] attributes.
+    Nodes whose text a render function owns carry data-i18n-default instead. */
+function updateStaticText() {
+  document.documentElement.lang = activeLanguage();
+  for (const el of document.querySelectorAll('[data-i18n]')) setText(el, t(el.dataset.i18n));
+  for (const el of document.querySelectorAll('[data-i18n-aria-label]')) setAttr(el, 'aria-label', t(el.dataset.i18nAriaLabel));
+  for (const el of document.querySelectorAll('[data-i18n-title]')) setAttr(el, 'title', t(el.dataset.i18nTitle));
+}
+
+/** Language names stay untranslated ("German · Deutsch") so every visitor can find their own. */
+function renderLanguageSelect() {
+  const select = document.getElementById('site-language');
+  if (!select || !i18nCore) return;
+  reconcileChildren(select, i18nCore.LANGUAGE_CODES, (code) => {
+    const option = document.createElement('option');
+    option.value = code;
+    option.textContent = i18nCore.languageLabel(i18nCore.LANGUAGES.find((language) => language.code === code));
+    return option;
+  }, false, false);
+  if (select.value !== activeLanguage()) select.value = activeLanguage();
 }
 
 /* ---------- keyed reconciliation + FLIP (Vue TransitionGroup pattern) ----------
@@ -925,6 +1013,23 @@ function onAppearanceClick(e) {
   renderAll();
 }
 
+/* ---------- language ---------- */
+
+/** The catalog loads before the state changes, so the switch never shows a half-translated page. */
+async function onLanguageChange(code) {
+  if (!i18nCore || !i18nCore.LANGUAGE_CODES.includes(code) || code === activeLanguage()) return;
+  try {
+    await loadCatalog(code);
+  } catch (err) {
+    console.warn('Could not load language.', err);
+    renderAll(); // the picker returns to the language still shown
+    return;
+  }
+  prefs.language = code;
+  savePrefs();
+  renderAll();
+}
+
 /* ---------- sidebar rendering (all pages and prompts share renderAll) ---------- */
 
 function renderSidebar() {
@@ -953,8 +1058,7 @@ function renderSidebar() {
   }
   const undo = document.getElementById('groups-undo');
   if (undo) undo.disabled = groupsUndo === null;
-  const message = document.getElementById('group-add-msg');
-  if (message) message.textContent = groupMessage;
+  setText(document.getElementById('group-add-msg'), groupMessage ? t(groupMessage) : '');
   renderAccount();
 }
 
@@ -963,15 +1067,15 @@ function renderAccount() {
   const busy = ['connecting', 'signing-in', 'signing-out'].includes(account.status);
   const choice = account.status === 'choice';
   const name = document.getElementById('account-name');
-  name.textContent = user ? user.displayName || 'Google account' : '';
+  setText(name, user ? user.displayName || t('account.fallbackName') : '');
   name.hidden = !user;
   const login = document.getElementById('account-login');
   login.hidden = !!user;
   login.disabled = busy;
-  login.textContent = busy ? 'Connecting…' : 'Login';
+  setText(login, busy ? t('account.connecting') : t('account.login'));
   const avatar = document.getElementById('account-avatar');
   avatar.disabled = !!user || busy;
-  avatar.setAttribute('aria-label', user ? 'Google account avatar' : 'Sign in with Google');
+  setAttr(avatar, 'aria-label', user ? t('account.avatar') : t('account.signIn'));
   const photo = user && /^https:\/\//.test(user.photoURL || '') ? user.photoURL : '';
   reconcileChildren(document.getElementById('account-photo'), photo ? [photo] : [], () => {
     const img = document.createElement('img');
@@ -983,18 +1087,14 @@ function renderAccount() {
   const action = document.getElementById('account-action');
   action.hidden = !user || (!choice && !['error', 'offline'].includes(account.status));
   action.disabled = busy;
-  action.textContent = choice ? 'Choose preferences' : 'Retry sync';
+  setText(action, choice ? t('account.choose') : t('account.retry'));
   const messages = {
-    'signed-out': '', unavailable: '',
-    connecting: 'Connecting…', 'signing-in': 'Signing in…', 'signing-out': 'Signing out…',
-    choice: 'Choose which preferences to use before syncing.',
-    syncing: '', synced: '',
-    offline: 'Offline. Changes stay on this device and sync when you reconnect.',
-    error: 'Could not sync. Your preferences are safe on this device.',
+    connecting: 'account.connecting', 'signing-in': 'account.signingIn', 'signing-out': 'account.signingOut',
+    choice: 'account.choiceStatus', offline: 'account.offline', error: 'account.error',
   };
   const status = document.getElementById('account-status');
-  const message = messages[account.status] || '';
-  status.textContent = message;
+  const message = messages[account.status] ? t(messages[account.status]) : '';
+  setText(status, message);
   status.hidden = !message;
   const signout = document.getElementById('account-signout');
   signout.hidden = !user;
@@ -1003,19 +1103,24 @@ function renderAccount() {
 
 function sidebarDialogSpec() {
   if (sidebarDialog.kind === 'reset') return {
-    title: 'Reset groups?',
-    description: 'Restore the default groups and remove your custom groups. Your selected mensas will stay the same. You can undo this change.',
-    actions: [['reset', 'Reset groups'], ['cancel', 'Cancel']],
+    title: t('dialog.resetTitle'),
+    description: t('dialog.resetBody'),
+    actions: [['reset', t('dialog.resetConfirm')], ['cancel', t('dialog.cancel')]],
   };
   if (sidebarDialog.kind === 'conflict') return {
-    title: 'Which preferences?',
-    description: 'This Google account already has saved data. Choose which to use on all your devices.\n\nThis includes your personal nutrition profile, meal allocation, nutrition standard, mensas, groups and all settings. Your choice applies to everything together.',
-    actions: [['cloud', 'Use cloud preferences'], ['local', 'Use this device'], ['cancel', 'Not now']],
+    title: t('dialog.conflictTitle'),
+    description: t('dialog.conflictBody'),
+    actions: [['cloud', t('dialog.useCloud')], ['local', t('dialog.useDevice')], ['cancel', t('dialog.notNow')]],
+  };
+  if (sidebarDialog.kind === 'unavailable') return {
+    title: t('dialog.unavailableTitle'),
+    description: t('dialog.unavailableBody'),
+    actions: [['cancel', t('dialog.ok')]],
   };
   return {
-    title: sidebarDialog.title || 'Could not connect',
-    description: sidebarDialog.message || 'Please try again. Your preferences are saved on this device.',
-    actions: [['cancel', 'OK']],
+    title: t('dialog.errorTitle'),
+    description: sidebarDialog.reason === 'popup-blocked' ? t('dialog.popupBlocked') : t('dialog.connection'),
+    actions: [['cancel', t('dialog.ok')]],
   };
 }
 
@@ -1034,7 +1139,7 @@ function renderSidebarDialog() {
   }
   const spec = sidebarDialogSpec();
   // Prompt contents join keyed reconciliation, just like sidebar pages.
-  reconcileChildren(container, [JSON.stringify(sidebarDialog)], () => {
+  reconcileChildren(container, [JSON.stringify([activeLanguage(), sidebarDialog])], () => {
     const surface = document.createElement('div');
     surface.innerHTML = '<div class="sidebar-dialog-copy"><h2 id="sidebar-dialog-title">' + esc(spec.title) +
       '</h2><p id="sidebar-dialog-description">' + esc(spec.description) + '</p></div>' +
@@ -1100,10 +1205,10 @@ function groupRowHTML(g) {
   const count = g.members.length;
   return '<div class="group-chip" data-group="' + esc(g.name) + '">' +
     '<button class="chip-apply" type="button"' + (count ? '' : ' disabled') +
-    ' aria-label="Apply group ' + esc(g.name) + '">' +
+    ' aria-label="' + esc(t('groups.apply', { name: g.name })) + '">' +
     '<span class="chip-name">' + esc(g.name) + '</span>' +
     '<span class="chip-count">' + count + '</span></button>' +
-    '<button class="chip-x" type="button" aria-label="Delete group ' + esc(g.name) + '">&times;</button></div>';
+    '<button class="chip-x" type="button" aria-label="' + esc(t('groups.delete', { name: g.name })) + '">&times;</button></div>';
 }
 
 function renderGroupList() {
@@ -1142,7 +1247,6 @@ function renderGroupList() {
       input.type = 'text';
       input.maxLength = 60;
       input.autocomplete = 'off';
-      input.setAttribute('aria-label', 'Group name');
       input.setAttribute('aria-describedby', 'group-add-msg');
       return input;
     }
@@ -1152,7 +1256,6 @@ function renderGroupList() {
       button.className = 'group-add-chip';
       button.type = 'button';
       button.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
-      button.setAttribute('aria-label', 'Add group');
       return button;
     }
     const chip = document.createElement('div');
@@ -1161,6 +1264,8 @@ function renderGroupList() {
   }, false);
   const input = document.getElementById('group-input');
   if (input && input.value !== groupInput) input.value = groupInput;
+  setAttr(input, 'aria-label', t('groups.name'));
+  setAttr(document.getElementById('group-add-btn'), 'aria-label', t('groups.add'));
 
   // Active state: the group whose members exactly match the current
   // selection is highlighted (CSS transition, no rebuild).
@@ -1172,6 +1277,8 @@ function renderGroupList() {
     if (g) {
       chip.querySelector('.chip-count').textContent = g.members.length;
       chip.querySelector('.chip-apply').disabled = !g.members.length;
+      setAttr(chip.querySelector('.chip-apply'), 'aria-label', t('groups.apply', { name: g.name }));
+      setAttr(chip.querySelector('.chip-x'), 'aria-label', t('groups.delete', { name: g.name }));
     }
     chip.classList.toggle('active', !!(g && active(g)));
   });
@@ -1189,27 +1296,38 @@ function updateNutritionTargets() {
     nutritionCache.result = result;
     // Keep the last committed profile's required fields mounted while editing
     // an invalid draft, so a conditional input never disappears mid-correction.
-    if (nutritionErrors.size) { nutritionCache.error = 'Check the highlighted fields to update your targets.'; return; }
+    if (nutritionErrors.size) { nutritionCache.error = { key: 'targets.checkFields' }; return; }
     nutritionCache.lunch = nutritionCore.coverageTargets(result.lunch);
     nutritionCache.dinner = nutritionCore.coverageTargets(result.dinner);
   } catch (error) {
-    nutritionCache.error = 'These inputs cannot be used together: ' + error.message;
+    nutritionCache.error = { key: 'targets.incompatible', params: { detail: error.message } };
   }
 }
 
 function nutritionFieldId(scope, key) { return 'nutrition-' + scope + '-' + key.replaceAll('.', '-'); }
 
+/** Structure only: renderNutritionFields writes the text, so reused fields follow the language. */
 function nutritionFieldHTML(field, scope) {
   const id = nutritionFieldId(scope, field.key);
   const control = field.type === 'select'
-    ? '<select id="' + id + '">' + field.options.map(([value, label]) =>
-      '<option value="' + esc(String(value)) + '">' + esc(label) + '</option>').join('') + '</select>'
+    ? '<select id="' + id + '">' + field.options.map(([value]) =>
+      '<option value="' + esc(String(value)) + '"></option>').join('') + '</select>'
     : '<span class="field-entry"><input id="' + id + '" type="number" inputmode="' + (field.step === 1 ? 'numeric' : 'decimal') +
       '" min="' + field.min + '" max="' + field.max + '" step="' + field.step + '" placeholder="—">' +
-      (field.unit ? '<span class="field-unit">' + esc(field.unit) + '</span>' : '') + '</span>';
-  return '<label for="' + id + '">' + esc(field.label) + '</label>' + control +
-    '<p class="field-hint" id="' + id + '-hint">' + esc(field.hint || '') + '</p>' +
+      (field.unitKey ? '<span class="field-unit"></span>' : '') + '</span>';
+  return '<label for="' + id + '"></label>' + control +
+    '<p class="field-hint" id="' + id + '-hint"></p>' +
     '<p class="field-error" id="' + id + '-error" hidden></p>';
+}
+
+function updateFieldText(node, field) {
+  setText(node.querySelector('label'), t(field.labelKey));
+  if (field.unitKey) setText(node.querySelector('.field-unit'), t(field.unitKey));
+  if (field.hintKey) setText(node.querySelector('.field-hint'), t(field.hintKey));
+  if (field.type === 'select') {
+    const options = node.querySelector('select').options;
+    field.options.forEach(([, key], i) => setText(options[i], t(key)));
+  }
 }
 
 function renderNutritionFields(container, fields, scope, values) {
@@ -1223,18 +1341,19 @@ function renderNutritionFields(container, fields, scope, values) {
   for (const field of fields) {
     const id = nutritionFieldId(scope, field.key);
     const input = document.getElementById(id);
+    updateFieldText(input.closest('.nutrition-field'), field);
     const draftKey = scope + ':' + field.key;
     let value = nutritionCore.readPath(values, field.key);
     if (field.key === 'scope') value = ['pregnant', 'lactating', 'requiresTherapeuticDiet'].find(key => values[key]) || 'general';
     if (nutritionDrafts.has(draftKey)) value = nutritionDrafts.get(draftKey);
     if (input.value !== String(value ?? '')) input.value = value ?? '';
-    const error = nutritionErrors.get(draftKey) || '';
+    const error = messageText(nutritionErrors.get(draftKey));
     input.setAttribute('aria-invalid', String(!!error));
     input.setAttribute('aria-describedby', id + '-hint' + (error ? ' ' + id + '-error' : ''));
     input.dataset.nutritionScope = scope;
     input.dataset.nutritionField = field.key;
     const errorNode = document.getElementById(id + '-error');
-    errorNode.textContent = error;
+    setText(errorNode, error);
     errorNode.hidden = !error;
   }
 }
@@ -1248,16 +1367,21 @@ function renderNutritionPreferences() {
   const status = document.getElementById('nutrition-profile-status');
   const metrics = Object.values(result?.daily || {});
   const missing = [...new Set(metrics.flatMap(metric => metric.missingInputs))];
-  const labels = new Map([...nutritionCore.PROFILE_FIELDS, ...nutritionCore.PLAN_FIELDS].map(field => [field.key, field.label.toLowerCase()]));
-  const missingNames = [...new Set(missing.map(key => labels.get(key.replace('profile.', '')) ||
-    (key.startsWith('energy') || key === 'resolved daily energy' ? 'energy calculation in General' :
-      key === 'clinicalPlan' ? 'planned daily deficit' : key.replace('profile.', ''))))];
-  let message = 'Add your details to see personal meal coverage.';
-  if (nutritionCache.error) message = nutritionCache.error;
-  else if (metrics.length && metrics.every(metric => metric.status === 'out_of_scope')) message = 'This standard does not cover the current nutrition context or profile. Meal targets are unavailable.';
-  else if (missingNames.length) message = 'To complete your targets, add ' + missingNames.join(', ') + '.';
+  const labels = new Map([...nutritionCore.PROFILE_FIELDS, ...nutritionCore.PLAN_FIELDS].map(field => [field.key, field.labelKey]));
+  // Core input names: 'profile.<field>', 'profile.a or profile.b', energy inputs and the clinical plan.
+  const missingNames = [...new Set(missing.map(key => {
+    const path = key.replace(/^profile\./, '').split(' or ')[0];
+    if (labels.has(path)) return t(labels.get(path));
+    if (key === 'clinicalPlan') return t(labels.get('deficitKcal'));
+    if (key.startsWith('energy') || key === 'resolved daily energy') return t('targets.missingEnergy');
+    return path;
+  }))];
+  let message = t('targets.addDetails');
+  if (nutritionCache.error) message = messageText(nutritionCache.error);
+  else if (metrics.length && metrics.every(metric => metric.status === 'out_of_scope')) message = t('targets.outOfScope');
+  else if (missingNames.length) message = t('targets.missing', { items: missingNames.join(t('list.separator')) });
   else if (result) message = '';
-  status.textContent = message;
+  setText(status, message);
   status.hidden = !message;
   status.classList.toggle('has-error', !!nutritionCache.error);
   renderStandardNote(settings.standard);
@@ -1277,14 +1401,15 @@ function renderStandardNote(standard) {
   const hint = document.getElementById(nutritionFieldId('settings', 'standard') + '-hint');
   const note = nutritionCore.STANDARD_NOTES[standard];
   if (!hint || !note) return;
-  hint.replaceChildren(
-    note.lead, ' (', externalLink(note.wiki, 'Wikipedia'), ', ',
-    externalLink(note.official, 'official site'), ') ' + note.body + ' ' + nutritionCore.STANDARD_CLOSING);
+  hint.replaceChildren(...templateNodes(t('note.template'), {
+    lead: t(note.leadKey), body: t(note.bodyKey), closing: t('note.closing'),
+    wiki: externalLink(note.wiki, t('note.wikipedia')), official: externalLink(note.official, t('note.official')),
+  }));
 }
 
 function updateDishCoverage(node, dish) {
   if (!nutritionCore) return;
-  const key = nutritionCache.key + '|' + prefs.meal;
+  const key = nutritionCache.key + '|' + prefs.meal + '|' + activeLanguage();
   if (dishCoverageCache.get(node) === key) return;
   const targets = nutritionCache[prefs.meal.toLowerCase()];
   for (const row of NUTRITION_ROWS) {
@@ -1305,14 +1430,31 @@ function updateDishCoverage(node, dish) {
     meter.dataset.tone = value.tone;
     meter.querySelector('.coverage-amount').textContent = nutritionCore.formatAmount(total) + ' / ' + target.amount;
     const track = meter.querySelector('.coverage-track');
-    track.setAttribute('aria-label', row.label + ' · ' + prefs.meal.toLowerCase() + ' coverage');
+    track.setAttribute('aria-label', t('coverage.label', { nutrient: t(row.label), meal: t(MEAL_LABELS[prefs.meal]) }));
     track.setAttribute('aria-valuemin', '0');
     track.setAttribute('aria-valuemax', String(Math.max(total, target.ref.amount.high)));
     track.setAttribute('aria-valuenow', String(total));
-    track.setAttribute('aria-valuetext', nutritionCore.formatAmount(total) + ' ' + unit + '. ' + value.description);
+    const references = target.references.map((r) => t('coverage.reference', {
+      type: r.type, amount: r.amount, kind: r.kindKey ? t(r.kindKey) : r.kind,
+    })).join(t('coverage.referenceSeparator'));
+    track.setAttribute('aria-valuetext', t('coverage.valuetext', {
+      amount: nutritionCore.formatAmount(total), unit, status: t(value.statusKey), percent: value.percent,
+      target: target.amount, label: t(target.labelKey), references,
+    }));
     meter.style.setProperty('--coverage', String(value.fill));
   }
   dishCoverageCache.set(node, key);
+}
+
+/** Dish nodes survive language switches (keys never include the language); only their fixed labels change. */
+function updateDishText(node) {
+  const language = activeLanguage();
+  if (dishTextCache.get(node) === language) return;
+  const headings = node.querySelectorAll('.nutrition-table thead th');
+  NUTRITION_HEADINGS.forEach((key, i) => setText(headings[i], t(key)));
+  const labels = node.querySelectorAll('.nutrient-values .n-label');
+  NUTRITION_ROWS.forEach((row, i) => setText(labels[i], t(row.label)));
+  dishTextCache.set(node, language);
 }
 
 /* ---------- content: mensa sections ---------- */
@@ -1362,14 +1504,14 @@ function nutritionTableHTML(nutrition) {
   const total = nutrition.total || {};
   const rows = NUTRITION_ROWS.map((row) =>
     '<tr class="nutrient-values">' +
-    '<td class="n-label">' + row.label + '</td>' +
+    '<td class="n-label">' + esc(t(row.label)) + '</td>' +
     '<td class="n-val">' + fmtCell(p100[row.key], row.key) + '</td>' +
     '<td class="n-val">' + fmtCell(total[row.key], row.key) + '</td>' +
     '</tr><tr class="nutrient-meter-row"><td colspan="3"><div class="nutrient-progress" data-nutrient="' + row.key + '"></div></td></tr>'
   ).join('');
 
   return '<table class="nutrition-table">' +
-    '<thead><tr><th>Nutrition</th><th>per 100g</th><th>Total</th></tr></thead>' +
+    '<thead><tr>' + NUTRITION_HEADINGS.map((key) => '<th>' + esc(t(key)) + '</th>').join('') + '</tr></thead>' +
     '<tbody>' + rows + '</tbody>' +
     '</table>';
 }
@@ -1378,12 +1520,13 @@ function nutritionTableHTML(nutrition) {
 function emptyServiceText(m) {
   const service = m.service || {};
   if (service.status === 'confirmed_closed') {
-    return 'Closed today' + (service.reason ? ' — ' + service.reason : '.');
+    // The reason is curated source text and keeps its own language.
+    return service.reason ? t('content.closedReason', { reason: service.reason }) : t('content.closed');
   }
   if (service.status === 'request_failed' || service.status === 'parse_failed') {
-    return 'Menu unavailable.';
+    return t('content.unavailable');
   }
-  return 'No meals available';
+  return t('content.noMealsSlot');
 }
 
 function mensaSectionHTML(m) {
@@ -1403,7 +1546,7 @@ function mensaSectionHTML(m) {
   const body = '<div class="mensa-dishes">' +
     (dishes.length
       ? dishes.map((d, i) => dishHTML(d, dishKey(m, d, i))).join('')
-      : '<div class="no-meals">' + EMPTY_MEALS_TEXT + '</div>') +
+      : '<div class="no-meals">' + esc(t('content.noMeals')) + '</div>') +
     '</div>';
 
   // Opening hours strip: "No meals available" when the slot is
@@ -1414,7 +1557,7 @@ function mensaSectionHTML(m) {
   // a text-less duplicate was the "no hours shown" repeat bug.
   const hoursText = slotClosed
     ? emptyServiceText(m)
-    : ((m.opening || {})[prefs.meal] || 'Not open today');
+    : ((m.opening || {})[prefs.meal] || t('content.notOpen'));
   return '<section class="mensa-section' +
     (slotClosed ? ' no-meal-slot' : collapsed ? ' collapsed' : '') +
     '" data-mensa="' + esc(m.id) + '" data-key="' + esc(m.id) + '">' +
@@ -1455,11 +1598,11 @@ function updateHoursLines() {
     const line = section.querySelector('.hours-line');
     if (!line) continue;
     if (slotClosed) {
-      line.textContent = emptyServiceText(m);
+      setText(line, emptyServiceText(m));
       continue;
     }
     const hours = (m.opening || {})[prefs.meal];
-    line.textContent = hours || 'Not open today';
+    setText(line, hours || t('content.notOpen'));
   }
 }
 
@@ -1473,6 +1616,16 @@ function dishKey(m, d, i) {
   return selectedDate + '|' + prefs.meal + '|' + (d.line || '') + '|' + (d.dish || '') + '|' + i;
 }
 
+/** Keyed empty state; its text follows the language on reuse. */
+function renderNoMeals(container) {
+  reconcileChildren(container, ['__empty__'], () => {
+    const div = document.createElement('div');
+    div.className = 'no-meals';
+    return div;
+  }, false, true);
+  setText(container.querySelector('[data-key="__empty__"]'), t('content.noMeals'));
+}
+
 /**
  * Keyed re-render of #content. Mensa sections are reconciled by mensa id;
  * dishes inside each section by dishKey. Nodes with unchanged keys are
@@ -1484,12 +1637,7 @@ function renderContent() {
   const selected = activeMensas().filter((m) => prefs.selected.has(m.id));
 
   if (!selected.length) {
-    reconcileChildren(content, ['__empty__'], () => {
-      const div = document.createElement('div');
-      div.className = 'no-meals';
-      div.textContent = EMPTY_MEALS_TEXT;
-      return div;
-    }, false, true);
+    renderNoMeals(content);
     return;
   }
 
@@ -1509,12 +1657,7 @@ function renderContent() {
     const dishes = m.meals[prefs.meal];
 
     if (!dishes.length) {
-      reconcileChildren(body, ['__empty__'], () => {
-        const div = document.createElement('div');
-        div.className = 'no-meals';
-        div.textContent = EMPTY_MEALS_TEXT;
-        return div;
-      }, false, true);
+      renderNoMeals(body);
       continue;
     }
     reconcileChildren(body, dishes.map((d, i) => dishKey(m, d, i)), (key) => {
@@ -1527,7 +1670,9 @@ function renderContent() {
     const dishNodes = new Map(Array.from(body.children).filter(node => !node.dataset.exiting).map(node => [node.dataset.key, node]));
     dishes.forEach((dish, index) => {
       const node = dishNodes.get(dishKey(m, dish, index));
-      if (node) updateDishCoverage(node, dish);
+      if (!node) return;
+      updateDishText(node);
+      updateDishCoverage(node, dish);
     });
     // enter/exit symmetry: replaced dishes (date/meal swap) shrink out
     // (animateExit) while the new ones grow in (animateEnter) — the
@@ -1701,8 +1846,12 @@ function updateSegmented() {
 
 function updateRawText() {
   rawFiltered = buildRawText();
-  document.getElementById('raw-text').textContent =
-    rawFiltered || 'No dishes available for the current selection.';
+  setText(document.getElementById('raw-text'), rawFiltered || t('raw.empty'));
+}
+
+function updateRawControls() {
+  setText(document.getElementById('raw-toggle'), rawOpen ? t('raw.hide') : t('raw.show'));
+  setText(document.getElementById('copy-btn'), copyFlash ? t('raw.copied') : t('raw.copy'));
 }
 
 /* ---------- collapse animation (max-height) ---------- */
@@ -1880,6 +2029,9 @@ function bindEvents() {
     if (e.target.id === 'group-input') { groupInput = e.target.value; renderAll(); }
   });
   selector.addEventListener('input', onNutritionInput);
+  selector.addEventListener('change', (e) => {
+    if (e.target.id === 'site-language') onLanguageChange(e.target.value);
+  });
   selector.addEventListener('focusout', (e) => {
     if (e.target.id !== 'group-input' || !groupEditing) return;
     if (groupInput.trim()) addCustomGroup();
@@ -1948,16 +2100,18 @@ function onNutritionInput(e) {
     const field = fields.find(item => item.key === name);
     try {
       const value = nutritionCore.fieldValue(field, raw);
-      if (['lunchPercent', 'dinnerPercent'].includes(name) && value === undefined) throw new Error('Enter a share from 0 to 100.');
+      if (['lunchPercent', 'dinnerPercent'].includes(name) && value === undefined) throw new nutritionCore.FieldError('error.share');
       if (name === 'scope') {
         for (const context of ['pregnant', 'lactating', 'requiresTherapeuticDiet']) delete profile[context];
         if (value !== 'general') profile[value] = true;
       } else nutritionCore.writePath(group === 'profile' ? profile : settings, name, value);
-    } catch (error) { errors.set(id, error.message); }
+    } catch (error) {
+      errors.set(id, error instanceof nutritionCore.FieldError ? { key: error.key, params: error.params } : { text: error.message });
+    }
   }
   if (settings.lunchPercent + settings.dinnerPercent > 100) {
-    errors.set('settings:lunchPercent', 'Lunch and dinner together cannot exceed 100%.');
-    errors.set('settings:dinnerPercent', 'Lunch and dinner together cannot exceed 100%.');
+    errors.set('settings:lunchPercent', { key: 'error.sharesTotal' });
+    errors.set('settings:dinnerPercent', { key: 'error.sharesTotal' });
   }
   nutritionErrors = errors;
   if (!errors.size) {
@@ -2037,8 +2191,7 @@ function onAccountAction() {
     renderAll();
   } else if (!accountSync) {
     if (window.ZMITTAG_FIREBASE_CONFIG && account.status === 'error') { initAccountSync(); return; }
-    sidebarDialog = { kind: 'unavailable', title: 'Account sync is not ready',
-      message: 'You can keep using your preferences on this device. Google sign-in will be available once account sync is connected.' };
+    sidebarDialog = { kind: 'unavailable' };
     renderAll();
   } else if (account.user) accountSync.retry();
   else accountSync.signIn();
@@ -2050,9 +2203,7 @@ function onAccountChange(next) {
   if (next.status === 'choice' && !wasChoice && !sidebarDialog) sidebarDialog = { kind: 'conflict' };
   if (next.status !== 'choice' && sidebarDialog && sidebarDialog.kind === 'conflict') sidebarDialog = null;
   if (!sidebarDialog && next.issue && next.issue !== 'auth/popup-closed-by-user' && next.issue !== 'auth/cancelled-popup-request') {
-    sidebarDialog = { kind: 'connection-error', message: next.issue === 'auth/popup-blocked'
-      ? 'Your browser blocked the sign-in window. Allow pop-ups for this site and try again.'
-      : 'Please check your connection and try again. Your preferences are saved on this device.' };
+    sidebarDialog = { kind: 'connection-error', reason: next.issue === 'auth/popup-blocked' ? 'popup-blocked' : 'connection' };
   }
   if (data) renderAll();
 }
@@ -2070,7 +2221,9 @@ async function initAccountSync() {
     accountSync = createPreferenceSync(adapter, {
       readPrefs: serializePrefs,
       applyPrefs: (value) => {
-        const next = sanitizePrefs(value);
+        // Documents from before the language setting keep this device's language.
+        const next = sanitizePrefs({ language: prefs.language, ...value });
+        if (!catalogs.has(next.language)) loadCatalog(next.language).then(() => { if (data) renderAll(); }, () => {});
         if (JSON.stringify(next.customGroups) !== JSON.stringify(prefs.customGroups) ||
             JSON.stringify(Array.from(next.hiddenGroups)) !== JSON.stringify(Array.from(prefs.hiddenGroups))) groupsUndo = null;
         prefs = next;
@@ -2209,28 +2362,27 @@ function onCalendarKeydown(e) {
 function renderCalendar() {
   // Ordinary content toggles also run renderAll. Preserve calendar nodes
   // and keyboard focus unless the state that determines this grid changed.
-  const key = `${calMonth}|${selectedDate}|${currentDate}|${Boolean(data)}`;
+  const key = `${calMonth}|${selectedDate}|${currentDate}|${Boolean(data)}|${activeLanguage()}`;
   if (key === calendarRenderKey) return;
   calendarRenderKey = key;
   const grid = document.getElementById('cal-grid');
   const title = document.getElementById('cal-title');
   const note = document.getElementById('cal-note');
+  document.getElementById('cal-weekdays').innerHTML =
+    tList('date.weekdaysShort').map((day) => '<span>' + esc(day) + '</span>').join('');
 
   // No data loaded (data.json fetch failed): render a graceful empty
   // state — an empty calMonth/selectedDate would otherwise produce
   // garbage cells ("January 0", year-0 date labels).
   if (!data) {
-    title.textContent = 'No menu data';
+    title.textContent = t('calendar.noData');
     grid.innerHTML = '';
-    note.textContent = 'No menu data available.';
+    note.textContent = t('calendar.noDataNote');
     return;
   }
 
   const [y, m] = calMonth.split('-').map(Number);
-
-  const months = ['January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December'];
-  title.textContent = months[m - 1] + ' ' + y;
+  title.textContent = t('date.monthTitle', { month: tList('date.months')[m - 1], year: y });
 
   // Monday-first grid: 0 = Monday. JS getDay(): 0=Sun..6=Sat.
   const first = new Date(y, m - 1, 1);
@@ -2250,7 +2402,7 @@ function renderCalendar() {
     cells.push(
       `<button class="${classes.join(' ')}" type="button" data-date="${iso}"` +
       (enabled ? '' : ' disabled') +
-      ` aria-label="${formatDate(iso)}${enabled ? '' : ' (no data)'}">${d}</button>`
+      ` aria-label="${esc(enabled ? formatDate(iso) : t('calendar.noDataDay', { date: formatDate(iso) }))}">${d}</button>`
     );
   }
   grid.innerHTML = cells.join('');
@@ -2258,7 +2410,9 @@ function renderCalendar() {
   // Footer note: how many days carry data in this month.
   const monthPrefix = calMonth.slice(0, 7);
   const n = availableDates().filter((iso) => iso.startsWith(monthPrefix)).length;
-  note.textContent = n ? `${n} day${n === 1 ? '' : 's'} with menus in this month` : 'No menus in this month';
+  note.textContent = n
+    ? t(n === 1 ? 'calendar.daysWithMenus.one' : 'calendar.daysWithMenus.other', { count: n })
+    : t('calendar.noMenusMonth');
 }
 
 /** Switch the active date: swap dataset + re-render through the unified
@@ -2363,11 +2517,11 @@ function cancelGroupInput() {
 function addCustomGroup() {
   const name = groupInput.trim();
   if (!name) {
-    showGroupMsg('Enter a group name');
+    showGroupMsg('groups.enterName');
     return;
   }
   if (DEFAULT_GROUPS.includes(name) || activeMensas().some((m) => m.group === name)) {
-    showGroupMsg('That name is reserved');
+    showGroupMsg('groups.reserved');
     return;
   }
   rememberGroups();
@@ -2381,11 +2535,11 @@ function addCustomGroup() {
 }
 
 let groupMsgTimer = null;
-function showGroupMsg(text) {
-  groupMessage = text;
+function showGroupMsg(key) {
+  groupMessage = key;
   clearTimeout(groupMsgTimer);
   renderAll();
-  if (text) groupMsgTimer = setTimeout(() => { groupMessage = ''; renderAll(); }, 2000);
+  if (key) groupMsgTimer = setTimeout(() => { groupMessage = ''; renderAll(); }, 2000);
 }
 
 /** Content-level click delegation: mensa titles collapse/expand. */
@@ -2422,13 +2576,13 @@ function toggleSection(section) {
 
 function toggleRaw() {
   const panel = document.getElementById('raw-panel');
-  const btn = document.getElementById('raw-toggle');
-  const open = panel.classList.toggle('open');
-  btn.textContent = open ? 'Hide Raw Data' : 'Show Raw Data';
-  btn.setAttribute('aria-expanded', String(open));
+  rawOpen = !rawOpen;
+  panel.classList.toggle('open', rawOpen);
+  document.getElementById('raw-toggle').setAttribute('aria-expanded', String(rawOpen));
+  updateRawControls();
   // Same max-height disclosure as the mensa sections — the panel
   // glides open/closed instead of popping (display:none flash).
-  if (open) expandBody(panel);
+  if (rawOpen) expandBody(panel);
   else collapseBody(panel);
 }
 
@@ -2460,13 +2614,16 @@ function fallbackCopy(btn) {
   document.body.removeChild(ta);
 }
 
+let copiedTimer = null;
 function flashCopied(btn) {
-  const orig = btn.textContent;
-  btn.textContent = 'Copied';
+  copyFlash = true;
   btn.classList.add('copied');
-  setTimeout(() => {
-    btn.textContent = orig;
+  updateRawControls();
+  clearTimeout(copiedTimer);
+  copiedTimer = setTimeout(() => {
+    copyFlash = false;
     btn.classList.remove('copied');
+    updateRawControls();
   }, 1500);
 }
 
@@ -2474,15 +2631,26 @@ function flashCopied(btn) {
    8. Boot
    ------------------------------------------------------------ */
 
+/** Pure modules; a separate function so tests can supply them without a module loader. */
+function loadModules() {
+  return Promise.all([import('./nutrition.mjs?v=VER_PLACEHOLDER'), import('./i18n.mjs?v=VER_PLACEHOLDER')]);
+}
+
+/** Preferences and the chosen catalog, loaded alongside data.json. */
+async function loadInterface() {
+  [nutritionCore, i18nCore] = await loadModules();
+  prefs = loadPrefs();
+  await loadCatalog(prefs.language).catch(() => loadCatalog(i18nCore.SOURCE_LANGUAGE));
+  updateStaticText();
+  updateDateHeading();
+}
+
 async function init() {
   currentDate = zurichToday();
   selectedDate = currentDate;
-  updateDateHeading();
   bindEvents();
   try {
-    nutritionCore = await import('./nutrition.mjs?v=VER_PLACEHOLDER');
-    prefs = loadPrefs();
-    const json = await fetchData();
+    const [json] = await Promise.all([fetchData(), loadInterface()]);
     data = json;
     validatePrefsAgainstData();
     renderAll(); // silent first paint — animations stay disabled
@@ -2492,8 +2660,7 @@ async function init() {
     initAccountSync();
   } catch (err) {
     console.error(err);
-    document.getElementById('content').innerHTML =
-      '<div class="error">Failed to load menu data. Please try again later.</div>';
+    document.getElementById('content').innerHTML = '<div class="error">' + esc(t('page.loadError')) + '</div>';
   }
 
   // Re-sync the segmented control once webfonts settle (widths may shift).

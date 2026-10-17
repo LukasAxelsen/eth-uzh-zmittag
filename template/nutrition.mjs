@@ -5,63 +5,64 @@ export {STANDARDS};
 
 export const DEFAULT_NUTRITION = Object.freeze({standard: 'ch_blv', energyMethod: 'standard',
   lunchPercent: 40, dinnerPercent: 30, proteinMealStrategy: 'proportional', s3MacroPolicy: 'individualized'});
-const numberField = (key, label, min, max, step = 'any', hint = '', unit = '') => ({key, label, min, max, step, hint, unit, type: 'number'});
-const choiceField = (key, label, options, hint = '') => ({key, label, options, hint, type: 'select'});
+// Fields carry catalog keys only; their text lives in template/i18n/<code>.json.
+const numberField = (key, min, max, step = 'any', {unit, hint = false} = {}) => ({key, min, max, step, type: 'number',
+  labelKey: `field.${key}.label`, hintKey: hint ? `field.${key}.hint` : '', unitKey: unit ? `unit.${unit}` : ''});
+const choiceField = (key, values, optionKey = value => `option.${key}.${value}`) => ({key, type: 'select',
+  labelKey: `field.${key}.label`, hintKey: '', unitKey: '',
+  options: values.map(value => [value, value === '' ? 'option.choose' : optionKey(value)])});
 export const PROFILE_FIELDS = [
-  numberField('ageYears', 'Age', 0, 120, 1, '', 'years'),
-  choiceField('sex', 'Sex used by the equation', [['', 'Choose'], ['female', 'Female'], ['male', 'Male']]),
-  numberField('heightCm', 'Height', 50, 250, 'any', '', 'cm'),
-  numberField('weightKg', 'Weight', 10, 500, 'any', '', 'kg'),
-  choiceField('activity.pal', 'Activity · PAL', [['', 'Choose'], ['1.4', '1.4 · Mostly sedentary'], ['1.6', '1.6 · Lightly active'], ['1.8', '1.8 · Active'], ['2', '2.0 · Very active']]),
-  choiceField('activity.cnClass', 'Activity · China DRIs', [['', 'Choose'], ['light', 'Light'], ['moderate', 'Moderate'], ['heavy', 'Heavy']]),
-  numberField('referenceWeightKg', 'Reference weight', 10, 500, 'any', 'Normal reference weight for protein calculations. Required outside the standard’s reference BMI range.', 'kg'),
-  numberField('training.weeklyHours', 'Training', 0, 168, 'any', '', 'h/week'),
-  choiceField('training.carbohydrateLoad', 'Training load', [['', 'Choose'], ['low', 'Low · light / skill activity'], ['moderate', 'Moderate · about 1 h / day'], ['high', 'High · 1–3 h / day'], ['very_high', 'Very high · 4–5 h / day']]),
-  choiceField('scope', 'Nutrition context', [['general', 'General adult nutrition'], ['pregnant', 'Pregnancy'], ['lactating', 'Breastfeeding'], ['requiresTherapeuticDiet', 'Therapeutic diet']]),
+  numberField('ageYears', 0, 120, 1, {unit: 'years'}),
+  choiceField('sex', ['', 'female', 'male']),
+  numberField('heightCm', 50, 250, 'any', {unit: 'cm'}),
+  numberField('weightKg', 10, 500, 'any', {unit: 'kg'}),
+  choiceField('activity.pal', ['', '1.4', '1.6', '1.8', '2']),
+  choiceField('activity.cnClass', ['', 'light', 'moderate', 'heavy']),
+  numberField('referenceWeightKg', 10, 500, 'any', {unit: 'kg', hint: true}),
+  numberField('training.weeklyHours', 0, 168, 'any', {unit: 'hoursPerWeek'}),
+  choiceField('training.carbohydrateLoad', ['', 'low', 'moderate', 'high', 'very_high']),
+  choiceField('scope', ['general', 'pregnant', 'lactating', 'requiresTherapeuticDiet']),
 ];
 export const PLAN_FIELDS = [
-  numberField('lunchPercent', 'Lunch', 0, 100, 'any', '', '%'),
-  numberField('dinnerPercent', 'Dinner', 0, 100, 'any', '', '%'),
-  numberField('energyKcal', 'Daily energy', 1, 20000, 'any', 'For clinical standards, enter maintenance energy before the deficit.', 'kcal'),
-  numberField('deficitKcal', 'Planned deficit', 1, 5000, 'any', 'Enter the deficit from your agreed nutrition plan.', 'kcal/day'),
+  numberField('lunchPercent', 0, 100, 'any', {unit: 'percent'}),
+  numberField('dinnerPercent', 0, 100, 'any', {unit: 'percent'}),
+  numberField('energyKcal', 1, 20000, 'any', {unit: 'kcal', hint: true}),
+  numberField('deficitKcal', 1, 5000, 'any', {unit: 'kcalPerDay', hint: true}),
 ];
 export const SETTING_FIELDS = [
-  choiceField('standard', 'Nutrition standard', Object.entries(STANDARDS)),
-  choiceField('energyMethod', 'Energy calculation', [['standard', 'Standard’s own method'], ['mifflin1990', 'Mifflin–St Jeor (1990)'], ['henry2005', 'Henry (2005)'], ['provided', 'Use my daily energy']]),
-  choiceField('proteinMealStrategy', 'Protein per meal', [['proportional', 'Use meal allocation'], ['issn_weight_dose', 'ISSN · 0.25 g / kg'], ['issn_absolute_dose', 'ISSN · 20–40 g']]),
-  choiceField('s3MacroPolicy', 'Macronutrient approach', [['individualized', 'Individualized · no fixed targets'], ['dge_general', 'DGE orientation'], ['dge_physically_active', 'DGE · physically active']]),
+  choiceField('standard', Object.keys(STANDARDS), id => `standard.${id}`),
+  choiceField('energyMethod', ['standard', 'mifflin1990', 'henry2005', 'provided']),
+  choiceField('proteinMealStrategy', ['proportional', 'issn_weight_dose', 'issn_absolute_dose']),
+  choiceField('s3MacroPolicy', ['individualized', 'dge_general', 'dge_physically_active']),
 ];
 // Plain explanation shown under the standard menu, above Energy calculation.
-// `lead` is the standard name’s first word; the UI places the source links beside it.
-export const STANDARD_CLOSING = 'Lunch and dinner shares are for planning. A reference amount is not an upper limit. Total sugar on the menu is not compared with free-sugar or added-sugar advice.';
-export const STANDARD_NOTES = {
-  efsa: {lead: 'EFSA', wiki: 'https://en.wikipedia.org/wiki/European_Food_Safety_Authority', official: 'https://www.efsa.europa.eu/en/topics/topic/dietary-reference-values',
-    body: 'DRVs read daily energy from a table for your age, sex and activity. Your weight and height do not change that table.'},
-  dge_oege: {lead: 'DGE/ÖGE', wiki: 'https://de.wikipedia.org/wiki/Deutsche_Gesellschaft_für_Ernährung', official: 'https://www.dge.de/wissenschaft/referenzwerte/',
-    body: 'estimates daily energy from age, sex, weight and activity from age 19. At 18 it uses an age and sex table instead.'},
-  ch_blv: {lead: 'Swiss', wiki: 'https://de.wikipedia.org/wiki/Bundesamt_für_Lebensmittelsicherheit_und_Veterinärwesen', official: 'https://www.blv.admin.ch/de/naehrstoffzufuhr',
-    body: 'BLV gives an energy range for your age and sex. Weight, height and activity do not change that table.'},
-  cn_dri_2023: {lead: 'China', wiki: 'https://zh.wikipedia.org/wiki/中国营养学会', official: 'https://www.cnsoc.org/drpostand/',
-    body: 'DRIs 2023 look up daily energy by age, sex and activity class. The number comes from a group table, not from your weight and height.'},
-  us_nasem: {lead: 'NASEM', wiki: 'https://en.wikipedia.org/wiki/National_Academies_of_Sciences,_Engineering,_and_Medicine', official: 'https://www.nationalacademies.org/projects/HMD-FNB-21-04/publication/26818',
-    body: 'estimates daily energy from age, sex, height, weight and activity. Activity chooses the equation. It is not multiplied on again afterwards.'},
-  us_dga_2025: {lead: 'DGA', wiki: 'https://en.wikipedia.org/wiki/Dietary_Guidelines_for_Americans', official: 'https://www.dietaryguidelines.gov/',
-    body: '2025–2030 does not include its own energy equation here. Choose another equation, or enter your daily energy. Protein uses your actual weight, and added sugar is limited per meal.'},
-  who: {lead: 'WHO', wiki: 'https://en.wikipedia.org/wiki/World_Health_Organization', official: 'https://www.who.int/news-room/fact-sheets/detail/healthy-diet',
-    body: 'sets limits for fat, salt, fibre and free sugar. It does not define daily energy or one protein number, so choose an energy calculation.'},
-  dge_sport: {lead: 'DGE', wiki: 'https://de.wikipedia.org/wiki/Deutsche_Gesellschaft_für_Ernährung', official: 'https://www.dge.de/presse/meldungen/2020/positionspapier-zur-proteinzufuhr-im-sport/',
-    body: 'sport 2020 gives a higher protein range only when you train more than 5 hours a week. It does not estimate energy from those hours.'},
-  issn: {lead: 'ISSN', wiki: 'https://en.wikipedia.org/wiki/Sports_nutrition', official: 'https://www.sportsnutritionsociety.org/',
-    body: 'gives a daily protein range for healthy people who train, and a choice for how to count protein at each meal. It does not estimate energy.'},
-  acsm: {lead: 'AND/DC/ACSM', wiki: 'https://en.wikipedia.org/wiki/Academy_of_Nutrition_and_Dietetics', official: 'https://pubmed.ncbi.nlm.nih.gov/26920240/',
-    body: '2016 gives protein, fat and carbohydrate ranges for training. Carbohydrate follows the training load you choose for that day. Energy still needs its own calculation.'},
-  nice_ng246: {lead: 'NICE', wiki: 'https://en.wikipedia.org/wiki/National_Institute_for_Health_and_Care_Excellence', official: 'https://www.nice.org.uk/guidance/ng246',
-    body: 'NG246 plans an energy deficit from your maintenance energy. Enter the deficit from your agreed plan. It does not list targets for the other nutrients.'},
-  dag_s3_2024: {lead: 'German', wiki: 'https://de.wikipedia.org/wiki/Deutsche_Adipositas-Gesellschaft', official: 'https://register.awmf.org/de/leitlinien/detail/050-001',
-    body: 'S3 obesity guidance plans an energy deficit from maintenance energy. The guideline usually suggests about 500–600 kcal a day; enter the deficit from your agreed plan. Macronutrients can stay individual, or follow a DGE orientation.'},
-  cn_obesity_2024: {lead: 'China', wiki: 'https://en.wikipedia.org/wiki/National_Health_Commission', official: 'https://www.cnsoc.org/images/@cmsxh_7108bb5a-13de-4356-a2a9-50d178413c39.pdf',
-    body: 'NHC obesity guidance applies when BMI is at least 24. It lowers maintenance energy by 30–50%. It is not a target for every adult.'},
+// The lead is the standard name’s first word; the UI places the source links beside it.
+const NOTE_LINKS = {
+  efsa: ['https://en.wikipedia.org/wiki/European_Food_Safety_Authority', 'https://www.efsa.europa.eu/en/topics/topic/dietary-reference-values'],
+  dge_oege: ['https://de.wikipedia.org/wiki/Deutsche_Gesellschaft_für_Ernährung', 'https://www.dge.de/wissenschaft/referenzwerte/'],
+  ch_blv: ['https://de.wikipedia.org/wiki/Bundesamt_für_Lebensmittelsicherheit_und_Veterinärwesen', 'https://www.blv.admin.ch/de/naehrstoffzufuhr'],
+  cn_dri_2023: ['https://zh.wikipedia.org/wiki/中国营养学会', 'https://www.cnsoc.org/drpostand/'],
+  us_nasem: ['https://en.wikipedia.org/wiki/National_Academies_of_Sciences,_Engineering,_and_Medicine', 'https://www.nationalacademies.org/projects/HMD-FNB-21-04/publication/26818'],
+  us_dga_2025: ['https://en.wikipedia.org/wiki/Dietary_Guidelines_for_Americans', 'https://www.dietaryguidelines.gov/'],
+  who: ['https://en.wikipedia.org/wiki/World_Health_Organization', 'https://www.who.int/news-room/fact-sheets/detail/healthy-diet'],
+  dge_sport: ['https://de.wikipedia.org/wiki/Deutsche_Gesellschaft_für_Ernährung', 'https://www.dge.de/presse/meldungen/2020/positionspapier-zur-proteinzufuhr-im-sport/'],
+  issn: ['https://en.wikipedia.org/wiki/Sports_nutrition', 'https://www.sportsnutritionsociety.org/'],
+  acsm: ['https://en.wikipedia.org/wiki/Academy_of_Nutrition_and_Dietetics', 'https://pubmed.ncbi.nlm.nih.gov/26920240/'],
+  nice_ng246: ['https://en.wikipedia.org/wiki/National_Institute_for_Health_and_Care_Excellence', 'https://www.nice.org.uk/guidance/ng246'],
+  dag_s3_2024: ['https://de.wikipedia.org/wiki/Deutsche_Adipositas-Gesellschaft', 'https://register.awmf.org/de/leitlinien/detail/050-001'],
+  cn_obesity_2024: ['https://en.wikipedia.org/wiki/National_Health_Commission', 'https://www.cnsoc.org/images/@cmsxh_7108bb5a-13de-4356-a2a9-50d178413c39.pdf'],
 };
+export const STANDARD_NOTES = Object.fromEntries(Object.entries(NOTE_LINKS).map(([id, [wiki, official]]) =>
+  [id, {wiki, official, leadKey: `note.${id}.lead`, bodyKey: `note.${id}.body`}]));
+/** Every catalog key built from the definitions above (verified against en.json by the i18n contract). */
+export function messageKeys() {
+  const keys = [];
+  for (const field of [...PROFILE_FIELDS, ...PLAN_FIELDS, ...SETTING_FIELDS]) {
+    keys.push(field.labelKey, field.hintKey, field.unitKey, ...(field.options || []).map(([, key]) => key));
+  }
+  for (const note of Object.values(STANDARD_NOTES)) keys.push(note.leadKey, note.bodyKey);
+  return [...new Set(keys.filter(Boolean))];
+}
 export function readPath(object, path) { return path.split('.').reduce((value, key) => value?.[key], object); }
 export function writePath(object, path, value) {
   const keys = path.split('.');
@@ -71,15 +72,23 @@ export function writePath(object, path, value) {
   else target[keys.at(-1)] = value;
   for (const key of Object.keys(object)) if (object[key] && typeof object[key] === 'object' && !Object.keys(object[key]).length) delete object[key];
 }
+/** Validation failure as a catalog key, translated where it is shown. */
+export class FieldError extends Error {
+  constructor(key, params = {}) {
+    super(key);
+    this.key = key;
+    this.params = params;
+  }
+}
 export function fieldValue(field, raw) {
   if (raw === '') return undefined;
   if (field.type === 'select') {
-    if (!field.options.some(([value]) => String(value) === String(raw))) throw new Error('Choose an available option.');
+    if (!field.options.some(([value]) => String(value) === String(raw))) throw new FieldError('error.chooseOption');
     return field.key === 'activity.pal' ? Number(raw) : raw;
   }
   const value = Number(raw);
   if (!Number.isFinite(value) || value < field.min || value > field.max || (field.step === 1 && !Number.isInteger(value)))
-    throw new Error(`Enter ${field.step === 1 ? 'a whole number' : 'a number'} from ${field.min} to ${field.max}.`);
+    throw new FieldError(field.step === 1 ? 'error.wholeNumber' : 'error.number', {min: field.min, max: field.max});
   return value;
 }
 export function sanitizeProfile(value) {
@@ -159,6 +168,8 @@ export function calculatePlan(profile, settings) {
 const ANALYTES = {kcal: 'energy', protein: 'protein', fat: 'total_fat', saturated: 'saturated_fat',
   carbs: 'available_carbohydrate', sugar: 'total_sugars', salt: 'label_salt_equivalent', fiber: 'dietary_fibre'};
 const PRIORITY = ['maximum', 'reduction_threshold', 'intake_range', 'meal_dose', 'minimum', 'reference_range', 'reference'];
+const KIND_KEYS = {maximum: 'kind.maximum', reduction_threshold: 'kind.reduction_threshold', intake_range: 'kind.intake_range',
+  meal_dose: 'kind.meal_dose', minimum: 'kind.minimum', reference_range: 'kind.reference_range', reference: 'kind.reference'};
 const amountText = (x, unit) => `${formatAmount(x.low)}${x.low !== x.high ? '–' + formatAmount(x.high) : ''} ${unit}`;
 const numberFormat = new Intl.NumberFormat('en', {maximumFractionDigits: 1});
 export function formatAmount(value) { return numberFormat.format(value); }
@@ -172,9 +183,11 @@ export function coverageTargets(metrics) {
     if (!ref) return [];
     const limit = ['maximum', 'reduction_threshold'].includes(ref.kind);
     const range = ref.kind === 'intake_range' || (ref.kind === 'meal_dose' && ref.amount.low !== ref.amount.high);
-    const description = refs.map(r => `${r.referenceType}: ${amountText(r.amount, metric.unit)} (${r.kind.replaceAll('_', ' ')})`).join('; ');
-    const label = limit ? 'budget' : range ? 'range' : ref.kind === 'minimum' ? 'minimum' : 'reference';
-    return [[key, {ref, limit, range, label, amount: amountText(ref.amount, metric.unit), description}]];
+    // Every applicable reference stays in the accessible description, not only the displayed one.
+    const references = refs.map(r => ({type: r.referenceType, amount: amountText(r.amount, metric.unit), kind: r.kind, kindKey: KIND_KEYS[r.kind] || ''}));
+    const labelKey = limit ? 'coverage.target.budget' : range ? 'coverage.target.range'
+      : ref.kind === 'minimum' ? 'coverage.target.minimum' : 'coverage.target.reference';
+    return [[key, {ref, limit, range, labelKey, amount: amountText(ref.amount, metric.unit), references}]];
   }));
 }
 /** Only a finite serving total is comparable. Zero is real data, not missing. */
@@ -185,14 +198,13 @@ export function coverage(total, target, key) {
   const tolerance = 1e-10 * Math.max(1, high);
   const below = total < low - tolerance || (ref.lowerInclusive === false && Math.abs(total - low) <= tolerance);
   const above = total > high + tolerance || (ref.upperInclusive === false && Math.abs(total - high) <= tolerance);
-  let tone = 'met', status;
+  let tone = 'met', statusKey;
   if (limit) {
     tone = above ? 'high' : 'met';
-    status = above ? 'Above budget' : low !== high && total >= low ? 'Within budget interval' : 'Within budget';
-  } else if (below) { tone = 'low'; status = 'Below ' + (range ? 'range' : 'reference'); }
-  else if (above && (range || key === 'kcal')) { tone = 'high'; status = 'Above ' + (range ? 'range' : 'plan'); }
-  else status = range ? 'In range' : 'Reference covered';
-  const percent = Math.round(total / high * 100);
-  return {tone, percent, fill: Math.min(1, total / high), status,
-    description: `${status}. ${percent}% of ${target.amount} ${target.label}. ${target.description}. Meal planning reference, not a per-meal safety threshold.`};
+    statusKey = above ? 'coverage.status.aboveBudget'
+      : low !== high && total >= low ? 'coverage.status.withinBudgetInterval' : 'coverage.status.withinBudget';
+  } else if (below) { tone = 'low'; statusKey = range ? 'coverage.status.belowRange' : 'coverage.status.belowReference'; }
+  else if (above && (range || key === 'kcal')) { tone = 'high'; statusKey = range ? 'coverage.status.aboveRange' : 'coverage.status.abovePlan'; }
+  else statusKey = range ? 'coverage.status.inRange' : 'coverage.status.referenceCovered';
+  return {tone, percent: Math.round(total / high * 100), fill: Math.min(1, total / high), statusKey};
 }
