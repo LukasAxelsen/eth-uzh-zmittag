@@ -240,6 +240,14 @@ Every content change runs through the ONE pipeline:
 - scripts/verify-i18n-contract.py checks completeness, shape, placeholders,
   numbers, abbreviations, HTML/JS usage, sync rules and the English source
   lock (template/i18n/source.lock.json).
+- Typography tokens: --font, --font-serif (date heading), --font-mono (raw
+  text). :lang(zh-Hans|zh-Hant|ja) redefine all three with Latin fonts first,
+  then only that region's CJK fonts, so Han glyphs follow GB / Taiwan / JIS
+  on every platform. The CJK --font-serif starts with a self-hosted Noto
+  Serif subset (template/fonts/heading-*.woff2, weight 600, font-display:
+  block; manifest heading-fonts.json, built by scripts/build-heading-fonts.py)
+  covering exactly the heading's characters. Other languages keep New York /
+  Georgia and never download a CJK font.
 
 ## Sidebar and account preferences
 

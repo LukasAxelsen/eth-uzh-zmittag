@@ -218,6 +218,17 @@ python3 scripts/verify-i18n-contract.py --update-lock # once every language is d
 The check also rejects missing or extra keys, changed placeholders, numbers
 or abbreviations, hard-coded UI strings and translated menu data.
 
+Chinese and Japanese text uses fonts of the matching standard on every
+platform (Simplified: GB, Traditional: Taiwan, Japanese: JIS). The date
+heading's CJK serif is a self-hosted subset of Noto Serif SC/TC/JP
+(`template/fonts/`, SIL Open Font License, see `OFL.txt`). If a CJK catalog
+changes its date or weekday text, rebuild the subsets:
+
+```sh
+pip install fonttools brotli
+python3 scripts/build-heading-fonts.py
+```
+
 Dish coverage compares only supplied/calculated serving **Total** values with
 the active meal's applicable reference. Bars show `current / reference` amounts
 and colour; missing totals, undefined targets and incompatible sugar definitions

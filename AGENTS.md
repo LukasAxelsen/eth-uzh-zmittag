@@ -245,6 +245,16 @@ Do not "improve" or "simplify" them without a fresh explicit request.
   translating: the lock records which English every catalog was made from.
 - **Sync**: `language` is validated by `account-sync.mjs` (manifest codes)
   and `firestore.rules` (same list). Deploy the rules before the frontend.
+- **Han glyph standards**: Simplified = GB, Traditional = Taiwan, Japanese =
+  JIS. Each `:lang()` block in style.css names ONLY its region's CJK fonts
+  (after the Latin fonts, which carry no Han), never another region's and
+  never `system-ui`; the checker classifies every CJK family. The base
+  stacks stay CJK-free. Picker options carry their own `lang`.
+- **CJK heading serif**: self-hosted Noto Serif SC/TC/JP SemiBold subsets in
+  `template/fonts/` (only the characters the heading can show, a few KB each,
+  OFL). When a CJK catalog's `date.*` text changes, run
+  `scripts/build-heading-fonts.py` (needs `pip install fonttools brotli`);
+  the checker fails until the subsets cover the new characters.
 
 ## Workflow (UI changes)
 
