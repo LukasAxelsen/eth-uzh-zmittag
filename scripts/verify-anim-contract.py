@@ -458,6 +458,25 @@ check("account changes render through renderAll",
       "function onAccountChange(next)" in JS and
       "renderAll();" in section("function onAccountChange(next)", ["async function initAccountSync()"]))
 
+print("== D4. personal nutrition stays in the shared pipeline ==")
+check("nutrition fields and meters register with FLIP",
+      "getElementById('profile-fields')" in fc and "querySelectorAll('.nutrient-progress')" in fc)
+check("targets are computed before the content diff",
+      "updateNutritionTargets();" in ra and "renderNutritionPreferences();" in ra)
+check("profile changes preserve dish identity",
+      "nutrition" not in section("function dishKey", ["function renderContent"]).split('return ')[-1])
+check("dish identity includes the active date (same-name servings can differ)",
+      "return selectedDate +" in section("function dishKey", ["function renderContent"]))
+check("nutrition handlers mutate state and use renderAll",
+      "function onNutritionInput" in JS and
+      "renderAll();" in section("function onNutritionInput", ["function onSidebarClick"]))
+check("coverage reconciles inside reused dishes",
+      "function updateDishCoverage" in JS and "reconcileChildren(container" in
+      section("function updateDishCoverage", ["/* ---------- content:"]))
+check("settings have General, Appearance and Language sections",
+      all('>' + title + '</h3>' in HTML for title in ['General', 'Appearance', 'Language']) and
+      '>Setting</h3>' not in HTML)
+
 print("== E. syntax ==")
 r = subprocess.run(["node", "--check", str(ROOT / "template" / "app.js")],
                    capture_output=True, text=True)

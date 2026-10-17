@@ -1301,18 +1301,28 @@ def publish_site(payload, *, allow_empty_today=False):
 
     with open(os.path.join(TEMPLATE_DIR, "app.js")) as f:
         files['app.js'] = f.read().replace("DATE_PLACEHOLDER", today).replace("VER_PLACEHOLDER", rev)
-    for name in ('firebase-config.js', 'account-sync.mjs'):
+    for name in ('firebase-config.js', 'account-sync.mjs', 'nutrition.mjs'):
         with open(os.path.join(TEMPLATE_DIR, name)) as f:
-            files[name] = f.read()
+            files[name] = f.read().replace('../zmittag-nutrition-core/', './nutrition-core/')
+    for name in ('core.mjs', 'reference-data.mjs', 'hall.mjs'):
+        with open(os.path.join(BASE, 'zmittag-nutrition-core', name)) as f:
+            files['nutrition-core/' + name] = f.read()
+    # Include the build revision on transitive ES module imports as well.
+    for name in list(files):
+        if name.endswith('.mjs'):
+            files[name] = re.sub(r"(from\s+['\"])(\.[^'\"]+\.mjs)(['\"])",
+                                 lambda m: m[1] + m[2] + '?v=' + rev + m[3], files[name])
     parent = os.path.dirname(os.path.abspath(OUTPUT_DIR))
     os.makedirs(parent, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix='.menu-build-', dir=parent) as staging:
         for name, contents in files.items():
+            os.makedirs(os.path.dirname(os.path.join(staging, name)), exist_ok=True)
             with open(os.path.join(staging, name), 'w', encoding='utf-8') as f:
                 f.write(contents)
         os.makedirs(OUTPUT_DIR, exist_ok=True)
         # data.json is switched last; each replacement is atomic on this FS.
-        for name in ('index.html', 'style.css', 'app.js', 'firebase-config.js', 'account-sync.mjs', 'index.txt', 'data.json'):
+        for name in [name for name in files if name != 'data.json'] + ['data.json']:
+            os.makedirs(os.path.dirname(os.path.join(OUTPUT_DIR, name)), exist_ok=True)
             os.replace(os.path.join(staging, name), os.path.join(OUTPUT_DIR, name))
 
 

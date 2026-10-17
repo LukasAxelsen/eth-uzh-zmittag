@@ -81,3 +81,31 @@ finish(); await tick(); assert.equal(accounts.state.user.uid, 'B'); assert.equal
 assert.equal(accounts.writes.filter(write => write.uid === 'B').length, 0);
 
 console.log('PASS: first upload, both conflict choices, field patches, offline reload/merge, rapid reversals and account isolation');
+
+// Personal data and all settings participate in the SAME conflict and patch path.
+const {DEFAULT_NUTRITION} = await import('../template/nutrition.mjs');
+const full = {...defaults, userProfile: {ageYears: 30, sex: 'male', weightKg: 75}, nutritionSettings: {...DEFAULT_NUTRITION}};
+const cloudData = {...full, selected: ['eth-3'], userProfile: {ageYears: 42, sex: 'female'},
+  nutritionSettings: {...DEFAULT_NUTRITION, standard: 'us_nasem'}};
+const nutritionCloud = device({initial: full}); nutritionCloud.login(); nutritionCloud.receive(cloudData);
+assert.equal(nutritionCloud.state.status, 'choice');
+assert.deepEqual(nutritionCloud.prefs, full);
+nutritionCloud.sync.resolveConflict('cloud');
+assert.deepEqual(nutritionCloud.prefs, cloudData);
+const nutritionLocal = device({initial: full}); nutritionLocal.login(); nutritionLocal.receive(cloudData);
+nutritionLocal.sync.resolveConflict('local'); await tick();
+assert.deepEqual(nutritionLocal.writes[0].patch, {selected: full.selected, userProfile: full.userProfile, nutritionSettings: full.nutritionSettings});
+const upgraded = device({initial: full}); upgraded.login(); upgraded.receive(defaults); upgraded.sync.resolveConflict('cloud');
+assert.deepEqual(upgraded.prefs.userProfile, {});
+assert.deepEqual(upgraded.prefs.nutritionSettings, DEFAULT_NUTRITION);
+upgraded.online(false); upgraded.edit({userProfile: {ageYears: 36}});
+const onlineProfile = device({initial: upgraded.prefs, stored: upgraded.stored}); onlineProfile.login();
+onlineProfile.receive({...defaults, userProfile: {}, nutritionSettings: {...DEFAULT_NUTRITION, standard: 'efsa'}, theme: 'dark'});
+await tick();
+assert.equal(onlineProfile.prefs.userProfile.ageYears, 36);
+assert.equal(onlineProfile.prefs.nutritionSettings.standard, 'efsa');
+assert.equal(onlineProfile.prefs.theme, 'dark');
+assert.deepEqual(onlineProfile.writes[0].patch, {userProfile: {ageYears: 36}});
+const badProfile = device({initial: full}); badProfile.login(); badProfile.receive({...full, userProfile: {ageYears: -5}});
+assert.equal(badProfile.state.status, 'error'); assert.equal(badProfile.writes.length, 0);
+console.log('PASS: unified nutrition conflict, legacy cloud upgrade, offline profile merge and invalid cloud rejection');

@@ -155,13 +155,26 @@
         <button class="account-action account-retry" id="account-action" type="button" hidden></button>
         <p class="account-status" id="account-status" role="status" aria-live="polite" hidden></p>
       </section>
+      <section class="profile-pane" aria-labelledby="profile-title">
+        <h3 class="selector-pane-title" id="profile-title">Personal details</h3>
+        <div id="profile-fields"></div>
+        <p class="nutrition-note" id="nutrition-profile-status" role="status" aria-live="polite"></p>
+      </section>
+      <section class="profile-pane" aria-labelledby="planning-title">
+        <h3 class="selector-pane-title" id="planning-title">Meal planning</h3>
+        <div id="planning-fields"></div>
+      </section>
     </div>
   </template>
 
   <template id="sidebar-template-setting">
     <div class="sidebar-page" id="sidebar-page-setting" role="tabpanel" aria-labelledby="sidebar-tab-setting">
       <section class="selector-pane settings-pane">
-        <h3 class="selector-pane-title">Setting</h3>
+        <h3 class="selector-pane-title">General</h3>
+        <div id="nutrition-settings-fields"></div>
+      </section>
+      <section class="selector-pane settings-pane">
+        <h3 class="selector-pane-title">Appearance</h3>
         <div class="mensa-row photo-row" id="photo-row" role="button" tabindex="0"
              aria-pressed="false">
           <span class="mensa-check" aria-hidden="true"></span>
@@ -186,6 +199,12 @@
           <button class="seg-option" type="button" data-theme="dark" aria-pressed="false">Dark</button>
           <button class="seg-option" type="button" data-theme="auto" aria-pressed="false">Auto</button>
         </div>
+      </section>
+      <section class="selector-pane settings-pane">
+        <h3 class="selector-pane-title">Language</h3>
+        <label class="language-row" for="site-language">
+          <select id="site-language" aria-label="Display language"><option value="en">English</option></select>
+        </label>
       </section>
     </div>
   </template>

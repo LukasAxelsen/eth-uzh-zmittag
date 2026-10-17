@@ -11,7 +11,7 @@ const root = path.resolve(__dirname, '..');
 const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'menu-browser-'));
 const server = http.createServer((req, res) => {
   const name = new URL(req.url, 'http://localhost').pathname.slice(1) || 'index.html';
-  if (!['index.html', 'app.js', 'firebase-config.js', 'account-sync.mjs', 'style.css', 'data.json', 'index.txt'].includes(name)) { res.writeHead(404).end(); return; }
+  if (!['index.html', 'app.js', 'firebase-config.js', 'account-sync.mjs', 'nutrition.mjs', 'nutrition-core/core.mjs', 'nutrition-core/hall.mjs', 'nutrition-core/reference-data.mjs', 'style.css', 'data.json', 'index.txt'].includes(name)) { res.writeHead(404).end(); return; }
   res.setHeader('Content-Type', (/\.(m?js)$/.test(name) ? 'text/javascript' : ({'style.css': 'text/css', 'data.json': 'application/json'})[name]) || 'text/html');
   if (name === 'firebase-config.js') { res.end('window.ZMITTAG_FIREBASE_CONFIG = null;'); return; }
   res.end(fs.readFileSync(path.join(directory, name)));
@@ -206,6 +206,108 @@ async function verifyAccountUI(browser, url) {
   console.log('PASS: account UI — profile, new-account upload, deferred conflict, cloud/local choices and sign-out');
 }
 
+async function verifyNutrition(browser, url) {
+  for (const width of [1280, 390, 320]) {
+    const reduced = width === 320;
+    const context = await browser.newContext({viewport: {width, height: 900}, reducedMotion: reduced ? 'reduce' : 'no-preference'});
+    await context.addInitScript(() => {
+      if (!localStorage.getItem('eth-uzh-nutrition-prefs')) localStorage.setItem('eth-uzh-nutrition-prefs', JSON.stringify({selected: ['eth-9'], photos: false}));
+    });
+    const page = await context.newPage();
+    const errors = []; page.on('pageerror', error => errors.push(error.message));
+    await page.clock.install({time: new Date('2026-10-14T10:00:00Z')});
+    await page.goto(url); await page.waitForSelector('html.anim-ready');
+    assert.equal(await page.getByRole('meter').count(), 0, 'no profile, no invented comparison');
+    const plus = await page.locator('#group-add-btn').evaluate(el => {
+      const style = getComputedStyle(el);
+      return {w: el.offsetWidth, h: el.offsetHeight, radius: style.borderTopLeftRadius, color: style.color, border: style.borderTopColor, svg: !!el.querySelector('svg')};
+    });
+    assert.equal(plus.svg, true, 'add control uses a thin plus glyph');
+    assert.equal(plus.w, plus.h);
+    assert.ok(plus.w > 0 && (plus.radius === '50%' || plus.radius === plus.w / 2 + 'px'), 'add control is a circle');
+    assert.equal(plus.color, 'rgb(29, 29, 31)');
+    assert.equal(plus.border, 'rgb(210, 210, 215)');
+    const dish = page.locator('.dish').filter({has: page.getByText('Piccata Milanese', {exact: true})});
+    const original = await dish.elementHandle();
+    await sidebar(page, 'My Data');
+    for (const [id, value] of [['ageYears','30'], ['heightCm','180'], ['weightKg','75']]) {
+      await page.locator('#nutrition-profile-' + id).fill(value);
+    }
+    await page.locator('#nutrition-profile-sex').selectOption('male');
+    await page.locator('#nutrition-profile-activity-pal').selectOption('1.6');
+    await settle(page);
+    assert.equal(await dish.locator('[role="meter"]').count(), 7);
+    assert.equal(await dish.locator('[data-nutrient="sugar"] [role="meter"]').count(), 0);
+    assert.equal(await dish.locator('[data-nutrient="weight"] [role="meter"]').count(), 0);
+    const protein = dish.locator('[data-nutrient="protein"] .nutrient-coverage');
+    assert.equal(await protein.locator('.coverage-amount').innerText(), '48.2 / 24.9 g');
+    assert.equal(await protein.getAttribute('data-tone'), 'met', 'PRI is not an upper limit');
+    assert.equal(await protein.locator('.coverage-track').innerText(), '', 'the bar has no visible status text');
+    const proteinNode = await protein.elementHandle();
+    assert.equal(await page.evaluate(() => {const result = nutritionCache.result; renderAll(); return result === nutritionCache.result;}), true, 'unrelated renders reuse the calculation');
+    await page.locator('#nutrition-settings-lunchPercent').fill('95');
+    assert.equal(await page.locator('#nutrition-settings-lunchPercent').getAttribute('aria-invalid'), 'true');
+    await settle(page);
+    assert.equal(await page.getByRole('meter').count(), 0, 'invalid allocation removes comparisons');
+    await page.locator('#nutrition-settings-lunchPercent').fill('40');
+    await settle(page);
+    await page.locator('#nutrition-profile-weightKg').fill('76');
+    await page.locator('#nutrition-profile-weightKg').fill('75');
+    await settle(page);
+    assert.equal(await original.evaluate(node => node.isConnected), true);
+    assert.equal(await proteinNode.evaluate(node => node.isConnected), false, 'removed meter is recreated after the invalid allocation');
+    const stable = await protein.elementHandle();
+    await page.locator('#nutrition-settings-lunchPercent').fill('35');
+    await page.locator('#nutrition-settings-lunchPercent').fill('40');
+    await settle(page);
+    assert.equal(await stable.evaluate(node => node.isConnected), true, 'valid edits keep the same meter');
+    await page.locator('#nutrition-profile-weightKg').fill('100');
+    await page.locator('#nutrition-profile-referenceWeightKg').fill('1');
+    assert.equal(await page.locator('#nutrition-profile-referenceWeightKg').getAttribute('aria-invalid'), 'true');
+    assert.equal(await page.locator('#nutrition-profile-referenceWeightKg').isVisible(), true, 'conditional fields survive invalid drafts');
+    await page.locator('#nutrition-profile-referenceWeightKg').fill('75');
+    await page.locator('#nutrition-profile-weightKg').fill('75');
+    await settle(page);
+    await page.reload(); await page.waitForSelector('html.anim-ready');
+    await sidebar(page, 'My Data');
+    assert.equal(await page.locator('#nutrition-profile-ageYears').inputValue(), '30');
+    assert.equal(await page.locator('#nutrition-settings-lunchPercent').inputValue(), '40');
+    assert.equal(await page.locator('label[for="nutrition-profile-ageYears"] + .field-entry .field-unit').innerText(), 'years');
+    assert.equal(await page.locator('label[for="nutrition-profile-heightCm"] + .field-entry .field-unit').innerText(), 'cm');
+    assert.equal(await page.locator('label[for="nutrition-profile-weightKg"] + .field-entry .field-unit').innerText(), 'kg');
+    assert.equal(await page.getByText('Saved on this browser').count(), 0);
+    assert.equal(await page.getByText('Completed years').count(), 0);
+    assert.equal(await page.getByText('Planning split').count(), 0);
+    assert.equal(await page.getByText('Your meal targets are ready').count(), 0);
+    assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    if (process.env.NUTRITION_SCREENSHOTS) await page.screenshot({path: path.join(process.env.NUTRITION_SCREENSHOTS, `nutrition-profile-${width}.png`)});
+    await sidebar(page, 'Setting');
+    assert.deepEqual(await page.locator('#sidebar-page-setting h3').allTextContents(), ['General','Appearance','Language']);
+    assert.equal(await page.locator('#site-language option').count(), 1);
+    assert.equal(await page.getByText('Display language', {exact: true}).count(), 0);
+    assert.equal(await page.getByText('Some guidelines do not define energy').count(), 0);
+    for (const standard of ['efsa','us_nasem','who','issn','ch_blv']) await page.locator('#nutrition-settings-standard').selectOption(standard);
+    const hint = page.locator('#nutrition-settings-standard-hint');
+    assert.match(await hint.innerText(), /^Swiss \(Wikipedia, official site\) BLV/);
+    assert.equal(await hint.locator('a').count(), 2);
+    assert.match(await hint.locator('a').nth(0).getAttribute('href'), /wikipedia\.org/);
+    await page.locator('#nutrition-settings-standard').selectOption('who');
+    assert.match(await page.locator('#nutrition-settings-standard-hint').innerText(), /^WHO \(Wikipedia, official site\)/);
+    await settle(page);
+    assert.equal(await dish.locator('[role="meter"]').count(), 7);
+    if (process.env.NUTRITION_SCREENSHOTS) await page.screenshot({path: path.join(process.env.NUTRITION_SCREENSHOTS, `nutrition-settings-${width}.png`)});
+    await page.getByRole('button',{name:'Dark',exact:true}).click();
+    await page.locator('#menu-btn').click();
+    await settle(page);
+    await page.waitForFunction(() => getComputedStyle(document.body).backgroundColor === 'rgb(0, 0, 0)');
+    if (process.env.NUTRITION_SCREENSHOTS) await page.screenshot({path: path.join(process.env.NUTRITION_SCREENSHOTS, `nutrition-dark-${width}.png`)});
+    if (reduced) assert.equal(await protein.locator('.coverage-fill').evaluate(node => getComputedStyle(node).transitionDuration), '0s');
+    assert.deepEqual(errors, []);
+    await context.close();
+  }
+  console.log('PASS: nutrition — persisted profile, Total-only bars, reference semantics, invalid/recovered inputs, cached calculations, reused dishes/meters, standard switches, 320/390px, dark mode and reduced motion');
+}
+
 (async () => {
   let browser;
   try {
@@ -297,6 +399,7 @@ async function verifyAccountUI(browser, url) {
 
     await verifySidebar(browser, url);
     await verifyAccountUI(browser, url);
+    await verifyNutrition(browser, url);
 
     const reduced = await browser.newContext({reducedMotion: 'reduce'});
     const reducedPage = await reduced.newPage();

@@ -5,16 +5,54 @@ service cloud.firestore {
       return request.auth != null && request.auth.uid == uid
         && request.auth.token.firebase.sign_in_provider == 'google.com';
     }
+    function optionalNumber(p, key, low, high) {
+      return !(key in p) || (p[key] is number && p[key] >= low && p[key] <= high);
+    }
+    function validProfile(p) {
+      return p is map
+        && p.keys().hasOnly(['ageYears', 'sex', 'heightCm', 'weightKg', 'referenceWeightKg', 'activity', 'training', 'pregnant', 'lactating', 'requiresTherapeuticDiet'])
+        && (!('ageYears' in p) || (p.ageYears is int && p.ageYears >= 0 && p.ageYears <= 120))
+        && (!('sex' in p) || p.sex in ['male', 'female'])
+        && optionalNumber(p, 'heightCm', 50, 250)
+        && optionalNumber(p, 'weightKg', 10, 500)
+        && optionalNumber(p, 'referenceWeightKg', 10, 500)
+        && (!('pregnant' in p) || p.pregnant is bool)
+        && (!('lactating' in p) || p.lactating is bool)
+        && (!('requiresTherapeuticDiet' in p) || p.requiresTherapeuticDiet is bool)
+        && (!('activity' in p) || (p.activity is map
+          && p.activity.keys().hasOnly(['pal', 'cnClass'])
+          && (!('pal' in p.activity) || p.activity.pal in [1.4, 1.6, 1.8, 2])
+          && (!('cnClass' in p.activity) || p.activity.cnClass in ['light', 'moderate', 'heavy'])))
+        && (!('training' in p) || (p.training is map
+          && p.training.keys().hasOnly(['weeklyHours', 'carbohydrateLoad'])
+          && optionalNumber(p.training, 'weeklyHours', 0, 168)
+          && (!('carbohydrateLoad' in p.training) || p.training.carbohydrateLoad in ['low', 'moderate', 'high', 'very_high'])));
+    }
+    function validNutrition(n) {
+      return n is map
+        && n.keys().hasAll(['standard', 'energyMethod', 'lunchPercent', 'dinnerPercent', 'proteinMealStrategy', 's3MacroPolicy'])
+        && n.keys().hasOnly(['standard', 'energyMethod', 'lunchPercent', 'dinnerPercent', 'proteinMealStrategy', 's3MacroPolicy', 'energyKcal', 'deficitKcal'])
+        && n.standard in ['efsa', 'dge_oege', 'ch_blv', 'cn_dri_2023', 'us_nasem', 'us_dga_2025', 'who', 'dge_sport', 'issn', 'acsm', 'nice_ng246', 'dag_s3_2024', 'cn_obesity_2024']
+        && n.energyMethod in ['standard', 'mifflin1990', 'henry2005', 'provided']
+        && n.proteinMealStrategy in ['proportional', 'issn_weight_dose', 'issn_absolute_dose']
+        && n.s3MacroPolicy in ['individualized', 'dge_general', 'dge_physically_active']
+        && optionalNumber(n, 'lunchPercent', 0, 100) && optionalNumber(n, 'dinnerPercent', 0, 100)
+        && n.lunchPercent + n.dinnerPercent <= 100
+        && optionalNumber(n, 'energyKcal', 1, 20000)
+        && optionalNumber(n, 'deficitKcal', 1, 5000);
+    }
     function validPreferences(p) {
       return p is map
         && p.keys().hasAll(['meal', 'selected', 'photos', 'openingTimes', 'prices', 'theme', 'customGroups', 'collapsedMensas'])
-        && p.keys().hasOnly(['meal', 'selected', 'photos', 'openingTimes', 'prices', 'theme', 'customGroups', 'hiddenGroups', 'collapsedMensas'])
+        && p.keys().hasOnly(['meal', 'selected', 'photos', 'openingTimes', 'prices', 'theme', 'customGroups', 'hiddenGroups', 'collapsedMensas', 'userProfile', 'nutritionSettings'])
         && p.meal in ['Lunch', 'Dinner'] && p.theme in ['light', 'dark', 'auto']
         && p.photos is bool && p.openingTimes is bool && p.prices is bool
         && p.selected is list && p.selected.size() <= 64
         && p.collapsedMensas is list && p.collapsedMensas.size() <= 64
         && (!('hiddenGroups' in p) || (p.hiddenGroups is list && p.hiddenGroups.size() <= 64))
-        && p.customGroups is map && p.customGroups.size() <= 50;
+        && p.customGroups is map && p.customGroups.size() <= 50
+        && (!('userProfile' in p) || validProfile(p.userProfile))
+        && (!('nutritionSettings' in p) || validNutrition(p.nutritionSettings));
     }
     match /users/{uid}/preferences/current {
       allow get: if owner(uid);
@@ -24,6 +62,6 @@ service cloud.firestore {
         && request.resource.data.updatedAt == request.time
         && validPreferences(request.resource.data.prefs);
     }
-    // No public reads, collection listing, profile storage or client deletes.
+    // No public reads, collection listing, Google identity storage or client deletes.
   }
 }

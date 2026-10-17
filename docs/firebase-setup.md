@@ -52,11 +52,18 @@ the repository.
 - Deleted default groups are saved in the optional `hiddenGroups` list. Old
   documents default to an empty list. Deploy the updated `firestore.rules`
   together with this frontend so writes containing the new field are accepted.
+- Personal nutrition data uses `userProfile`; calculation standard, energy
+  choices and meal shares use `nutritionSettings` in the same preference
+  document. One local/cloud choice covers every field. Choosing an old cloud
+  document resets the profile to empty and nutrition settings to their defaults;
+  it does not silently keep a conflicting local profile. Deploy the updated
+  rules before publishing this frontend. This change has no separate database.
 
 ## Verification
 
 ```sh
 node scripts/test-account-sync.mjs
+node scripts/test-nutrition.mjs
 npm run test:browser
 python3 scripts/verify-anim-contract.py
 ```

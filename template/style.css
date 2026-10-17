@@ -16,6 +16,7 @@
   --border: #d2d2d7; --raw-bg: #f5f5f7;
   --thumb-bg: #1d1d1f; --thumb-text: #ffffff;  /* segmented pill + check dot */
   --accent: #0071e3;
+  --coverage-low: #9a6700; --coverage-met: #24804a; --coverage-high: #c23b32;
   --dialog-backdrop: rgb(0 0 0 / 30%);
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text",
           "Helvetica Neue", Helvetica, Arial, sans-serif;
@@ -70,6 +71,7 @@
   --border: #424245; --raw-bg: #1d1d1f;
   --thumb-bg: #f5f5f7; --thumb-text: #1d1d1f;
   --accent: #2997ff;
+  --coverage-low: #e5aa37; --coverage-met: #66c58a; --coverage-high: #ff8278;
   --dialog-backdrop: rgb(255 255 255 / 8%);
 }
 @media (prefers-color-scheme: dark) {
@@ -78,6 +80,7 @@
     --border: #424245; --raw-bg: #1d1d1f;
     --thumb-bg: #f5f5f7; --thumb-text: #1d1d1f;
     --accent: #2997ff;
+    --coverage-low: #e5aa37; --coverage-met: #66c58a; --coverage-high: #ff8278;
     --dialog-backdrop: rgb(255 255 255 / 8%);
   }
 }
@@ -488,6 +491,64 @@ body.menu-open #menu-btn {
   margin-top: 0;
   padding-top: 0;
 }
+.selector-pane.settings-pane + .settings-pane { margin-top: 32px; }
+.profile-pane { margin-top: 28px; }
+.nutrition-note, .field-hint, .field-error {
+  color: var(--body);
+  font-size: 12px;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+.nutrition-note { margin-top: 10px; }
+.nutrition-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 12px;
+  padding: 12px 0;
+}
+.field-entry {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 0;
+}
+.field-unit {
+  flex: none;
+  color: var(--sub);
+  font-size: 14px;
+  white-space: nowrap;
+}
+.nutrition-field label, .language-row { font-size: 14px; color: var(--text); }
+.nutrition-field input, .nutrition-field select, .language-row select {
+  min-width: 0;
+  width: 100%;
+  min-height: 44px;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 16px;
+  transition: border-color .2s var(--ease), color .2s var(--ease), background-color .3s var(--ease);
+}
+.nutrition-field input { text-align: right; font-variant-numeric: tabular-nums; }
+.field-entry input { width: 4.75rem; min-width: 4.25rem; flex: 0 1 4.75rem; }
+.nutrition-field select { grid-column: 1 / -1; margin-top: 4px; }
+.nutrition-field:has(select) label { grid-column: 1 / -1; }
+.nutrition-field input:focus-visible, .nutrition-field select:focus-visible, .language-row select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.field-hint, .field-error { grid-column: 1 / -1; padding-top: 4px; }
+.field-hint:empty, .field-error[hidden] { display: none; }
+.field-hint a { color: var(--accent); text-decoration: underline; text-underline-offset: 2px; }
+.field-hint a:hover { color: var(--text); }
+.field-error, .nutrition-note.has-error { color: var(--coverage-high); }
+.nutrition-field [aria-invalid="true"] { border-color: var(--coverage-high); }
+.language-row { display: block; padding-top: 8px; }
+.language-row select { display: block; margin-top: 0; }
 .selector-pane-title {
   margin: 0 0 6px;
   font-size: 12px;
@@ -714,7 +775,8 @@ body.menu-open #menu-btn {
               transform .25s var(--ease);
 }
 /* M3 state layer: a translucent overlay that fades in on hover/press. */
-.group-chip::before {
+.group-chip::before,
+.group-add-chip::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -724,8 +786,10 @@ body.menu-open #menu-btn {
   transition: opacity .2s var(--ease);
   pointer-events: none;
 }
-.group-chip:hover::before { opacity: .06; }
-.group-chip:active::before { opacity: .12; }
+.group-chip:hover::before,
+.group-add-chip:hover::before { opacity: .06; }
+.group-chip:active::before,
+.group-add-chip:active::before { opacity: .12; }
 .group-chip:hover { border-color: var(--text); }
 .group-chip.active {
   border-color: var(--thumb-bg);
@@ -795,20 +859,23 @@ body.menu-open #menu-btn {
 }
 .group-editor:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .group-add-chip {
+  position: relative;
+  overflow: hidden;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 34px;
   height: 34px;
-  font-size: 22px;
-  line-height: 1;
-  color: var(--accent);
+  padding: 0;
+  color: var(--text);
   background: none;
-  border: none;
-  border-radius: var(--r-pill);
+  border: 1px solid var(--border);
+  border-radius: var(--r-circle);
   cursor: pointer;
+  transition: border-color .25s var(--ease), color .25s var(--ease);
 }
-.group-add-chip:hover { background: var(--raw-bg); }
+.group-add-chip:hover { border-color: var(--text); }
+.group-add-chip svg { position: relative; width: 14px; height: 14px; display: block; }
 #group-add-msg { display: block; margin-top: 8px; color: var(--sub); font-size: 12px; }
 #group-add-msg:empty { display: none; }
 
@@ -1023,6 +1090,29 @@ html .mensa-section.no-meal-slot .hours-line-wrap { max-height: 16px; }
   font-weight: 500;
   font-variant-numeric: tabular-nums;
 }
+.nutrition-table .nutrient-values td { border-bottom: none; }
+.nutrition-table .nutrient-meter-row td { padding: 0; }
+.nutrient-coverage { padding-bottom: 9px; }
+.coverage-amount {
+  padding-bottom: 5px;
+  color: var(--body);
+  text-align: right;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+.coverage-track { height: 5px; border-radius: var(--r-pill); background: var(--raw-bg); overflow: hidden; }
+.coverage-fill {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--coverage-met);
+  transform: scaleX(var(--coverage, 0));
+  transform-origin: left center;
+  transition: transform .35s var(--ease), background-color .3s var(--ease);
+}
+[data-tone="low"] .coverage-fill { background: var(--coverage-low); }
+[data-tone="high"] .coverage-fill { background: var(--coverage-high); }
 
 /* 6. Raw data section.
    The panel is a max-height disclosure (same pattern as .mensa-dishes

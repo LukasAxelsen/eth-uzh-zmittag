@@ -4,7 +4,8 @@ const vm = require('node:vm');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const source = fs.readFileSync(path.join(__dirname, '../template/app.js'), 'utf8')
-  .replace(/\ninit\(\);\s*$/, '');
+  .replace(/\ninit\(\);\s*$/, '')
+  .replace("await import('./nutrition.mjs?v=VER_PLACEHOLDER')", 'testNutritionCore');
 
 async function boot(instant, days) {
   let now = instant;
@@ -17,6 +18,7 @@ async function boot(instant, days) {
   const grid = { get innerHTML() { return gridHtml; }, set innerHTML(value) { gridWrites++; gridHtml = value; } };
   const elements = { 'date-heading': heading, 'cal-grid': grid, 'cal-title': {}, 'cal-note': {} };
   const context = vm.createContext({
+    testNutritionCore: await import('../template/nutrition.mjs'),
     Date: FixedDate, Intl, console, setTimeout, clearTimeout,
     window: { matchMedia: () => ({ matches: false }) },
     document: { title: '', getElementById: (id) => elements[id] || heading, documentElement: { classList: { add() {} } } },

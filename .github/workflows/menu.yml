@@ -34,6 +34,8 @@ jobs:
           node scripts/test-date.cjs
           node scripts/test-settings.cjs
           node scripts/test-account-sync.mjs
+          node scripts/test-nutrition.mjs
+          node zmittag-nutrition-core/test/run.mjs
           python3 scripts/verify-anim-contract.py
       - name: Install browser test runtime
         run: |

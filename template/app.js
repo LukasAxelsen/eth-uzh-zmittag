@@ -110,6 +110,11 @@ let sidebarDialog = null;
 let dialogReturnFocus = null;
 let account = { user: null, status: 'signed-out' };
 let accountSync = null;
+let nutritionCore = null;
+let nutritionCache = {key: '', result: null, lunch: {}, dinner: {}, error: ''};
+const nutritionDrafts = new Map();
+let nutritionErrors = new Map();
+const dishCoverageCache = new WeakMap(); // DOM work cache; never a source of render state
 
 /* ------------------------------------------------------------
    3. Persistence (localStorage)
@@ -143,6 +148,8 @@ function sanitizePrefs(value) {
   }
   if (Array.isArray(parsed.collapsedMensas)) p.collapsedMensas = new Set(parsed.collapsedMensas.map(String));
   if (Array.isArray(parsed.hiddenGroups)) p.hiddenGroups = new Set(parsed.hiddenGroups.filter(name => typeof name === 'string'));
+  p.userProfile = nutritionCore ? nutritionCore.sanitizeProfile(parsed.userProfile) : {};
+  p.nutritionSettings = nutritionCore ? nutritionCore.sanitizeNutrition(parsed.nutritionSettings) : {};
   return p;
 }
 
@@ -153,6 +160,8 @@ function serializePrefs() {
     theme: prefs.theme, customGroups: JSON.parse(JSON.stringify(prefs.customGroups)),
     hiddenGroups: Array.from(prefs.hiddenGroups),
     collapsedMensas: Array.from(prefs.collapsedMensas),
+    userProfile: JSON.parse(JSON.stringify(prefs.userProfile || {})),
+    nutritionSettings: JSON.parse(JSON.stringify(prefs.nutritionSettings || {})),
   };
 }
 
@@ -379,6 +388,10 @@ const FLIP_CONTAINERS = () => [
   document.getElementById('sidebar-pages'),
   document.getElementById('sidebar-dialog-content'),
   document.getElementById('account-photo'),
+  document.getElementById('profile-fields'),
+  document.getElementById('planning-fields'),
+  document.getElementById('nutrition-settings-fields'),
+  ...document.querySelectorAll('.nutrient-progress'),
 ].filter(Boolean);
 
 /** Full re-render of everything derived from state — the ONE render entry
@@ -412,6 +425,8 @@ function renderAll() {
   }
   const snapshots = FLIP_CONTAINERS().map((c) => [c, flipFirst(c)]);
   renderSidebar();
+  updateNutritionTargets();
+  renderNutritionPreferences();
   updateDateHeading();
   if (calMonth) renderCalendar();
   updateSegmented();
@@ -758,7 +773,9 @@ function nextLiveChild(container, idx, keep) {
     The FLIP pass itself is orchestrated by renderAll() (doFlip stays
     false there); standalone callers may pass doFlip=true. */
 function reconcileChildren(container, keys, makeEl, doFlip, enter = true) {
-  const first = flipFirst(container);
+  // renderAll owns the normal snapshot pass. Only standalone reconciliation
+  // needs its own measurement; avoid duplicate layout reads for every meter.
+  const first = doFlip === true ? flipFirst(container) : null;
   const existing = new Map();
   for (const child of container.children) {
     if (child.dataset.key) existing.set(child.dataset.key, child);
@@ -992,7 +1009,7 @@ function sidebarDialogSpec() {
   };
   if (sidebarDialog.kind === 'conflict') return {
     title: 'Which preferences?',
-    description: 'This Google account already has saved preferences. Choose which to use on all your devices.\n\nThis includes meal time, mensas, groups and settings.',
+    description: 'This Google account already has saved data. Choose which to use on all your devices.\n\nThis includes your personal nutrition profile, meal allocation, nutrition standard, mensas, groups and all settings. Your choice applies to everything together.',
     actions: [['cloud', 'Use cloud preferences'], ['local', 'Use this device'], ['cancel', 'Not now']],
   };
   return {
@@ -1134,7 +1151,7 @@ function renderGroupList() {
       button.id = 'group-add-btn';
       button.className = 'group-add-chip';
       button.type = 'button';
-      button.textContent = '+';
+      button.innerHTML = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3.5v9M3.5 8h9" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg>';
       button.setAttribute('aria-label', 'Add group');
       return button;
     }
@@ -1158,6 +1175,144 @@ function renderGroupList() {
     }
     chip.classList.toggle('active', !!(g && active(g)));
   });
+}
+
+/* ---------- nutrition: derived state and rendering ---------- */
+
+function updateNutritionTargets() {
+  if (!nutritionCore) return;
+  const key = JSON.stringify([prefs.userProfile, prefs.nutritionSettings, Array.from(nutritionErrors)]);
+  if (nutritionCache.key === key) return;
+  nutritionCache = {key, result: null, lunch: {}, dinner: {}, error: ''};
+  try {
+    const result = nutritionCore.calculatePlan(prefs.userProfile, prefs.nutritionSettings);
+    nutritionCache.result = result;
+    // Keep the last committed profile's required fields mounted while editing
+    // an invalid draft, so a conditional input never disappears mid-correction.
+    if (nutritionErrors.size) { nutritionCache.error = 'Check the highlighted fields to update your targets.'; return; }
+    nutritionCache.lunch = nutritionCore.coverageTargets(result.lunch);
+    nutritionCache.dinner = nutritionCore.coverageTargets(result.dinner);
+  } catch (error) {
+    nutritionCache.error = 'These inputs cannot be used together: ' + error.message;
+  }
+}
+
+function nutritionFieldId(scope, key) { return 'nutrition-' + scope + '-' + key.replaceAll('.', '-'); }
+
+function nutritionFieldHTML(field, scope) {
+  const id = nutritionFieldId(scope, field.key);
+  const control = field.type === 'select'
+    ? '<select id="' + id + '">' + field.options.map(([value, label]) =>
+      '<option value="' + esc(String(value)) + '">' + esc(label) + '</option>').join('') + '</select>'
+    : '<span class="field-entry"><input id="' + id + '" type="number" inputmode="' + (field.step === 1 ? 'numeric' : 'decimal') +
+      '" min="' + field.min + '" max="' + field.max + '" step="' + field.step + '" placeholder="—">' +
+      (field.unit ? '<span class="field-unit">' + esc(field.unit) + '</span>' : '') + '</span>';
+  return '<label for="' + id + '">' + esc(field.label) + '</label>' + control +
+    '<p class="field-hint" id="' + id + '-hint">' + esc(field.hint || '') + '</p>' +
+    '<p class="field-error" id="' + id + '-error" hidden></p>';
+}
+
+function renderNutritionFields(container, fields, scope, values) {
+  reconcileChildren(container, fields.map(field => field.key), key => {
+    const field = fields.find(item => item.key === key);
+    const node = document.createElement('div');
+    node.className = 'nutrition-field';
+    node.innerHTML = nutritionFieldHTML(field, scope);
+    return node;
+  }, false, true);
+  for (const field of fields) {
+    const id = nutritionFieldId(scope, field.key);
+    const input = document.getElementById(id);
+    const draftKey = scope + ':' + field.key;
+    let value = nutritionCore.readPath(values, field.key);
+    if (field.key === 'scope') value = ['pregnant', 'lactating', 'requiresTherapeuticDiet'].find(key => values[key]) || 'general';
+    if (nutritionDrafts.has(draftKey)) value = nutritionDrafts.get(draftKey);
+    if (input.value !== String(value ?? '')) input.value = value ?? '';
+    const error = nutritionErrors.get(draftKey) || '';
+    input.setAttribute('aria-invalid', String(!!error));
+    input.setAttribute('aria-describedby', id + '-hint' + (error ? ' ' + id + '-error' : ''));
+    input.dataset.nutritionScope = scope;
+    input.dataset.nutritionField = field.key;
+    const errorNode = document.getElementById(id + '-error');
+    errorNode.textContent = error;
+    errorNode.hidden = !error;
+  }
+}
+
+function renderNutritionPreferences() {
+  if (!nutritionCore) return;
+  const profile = prefs.userProfile, settings = prefs.nutritionSettings, result = nutritionCache.result;
+  renderNutritionFields(document.getElementById('profile-fields'), nutritionCore.profileFields(profile, settings, result), 'profile', profile);
+  renderNutritionFields(document.getElementById('planning-fields'), nutritionCore.planningFields(settings), 'settings', settings);
+  renderNutritionFields(document.getElementById('nutrition-settings-fields'), nutritionCore.settingFields(settings), 'settings', settings);
+  const status = document.getElementById('nutrition-profile-status');
+  const metrics = Object.values(result?.daily || {});
+  const missing = [...new Set(metrics.flatMap(metric => metric.missingInputs))];
+  const labels = new Map([...nutritionCore.PROFILE_FIELDS, ...nutritionCore.PLAN_FIELDS].map(field => [field.key, field.label.toLowerCase()]));
+  const missingNames = [...new Set(missing.map(key => labels.get(key.replace('profile.', '')) ||
+    (key.startsWith('energy') || key === 'resolved daily energy' ? 'energy calculation in General' :
+      key === 'clinicalPlan' ? 'planned daily deficit' : key.replace('profile.', ''))))];
+  let message = 'Add your details to see personal meal coverage.';
+  if (nutritionCache.error) message = nutritionCache.error;
+  else if (metrics.length && metrics.every(metric => metric.status === 'out_of_scope')) message = 'This standard does not cover the current nutrition context or profile. Meal targets are unavailable.';
+  else if (missingNames.length) message = 'To complete your targets, add ' + missingNames.join(', ') + '.';
+  else if (result) message = '';
+  status.textContent = message;
+  status.hidden = !message;
+  status.classList.toggle('has-error', !!nutritionCache.error);
+  renderStandardNote(settings.standard);
+}
+
+function externalLink(href, text) {
+  const link = document.createElement('a');
+  link.href = href;
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  link.textContent = text;
+  return link;
+}
+
+/** Standard explanation sits in the standard field hint: under the menu, above Energy calculation. */
+function renderStandardNote(standard) {
+  const hint = document.getElementById(nutritionFieldId('settings', 'standard') + '-hint');
+  const note = nutritionCore.STANDARD_NOTES[standard];
+  if (!hint || !note) return;
+  hint.replaceChildren(
+    note.lead, ' (', externalLink(note.wiki, 'Wikipedia'), ', ',
+    externalLink(note.official, 'official site'), ') ' + note.body + ' ' + nutritionCore.STANDARD_CLOSING);
+}
+
+function updateDishCoverage(node, dish) {
+  if (!nutritionCore) return;
+  const key = nutritionCache.key + '|' + prefs.meal;
+  if (dishCoverageCache.get(node) === key) return;
+  const targets = nutritionCache[prefs.meal.toLowerCase()];
+  for (const row of NUTRITION_ROWS) {
+    const container = node.querySelector('.nutrient-progress[data-nutrient="' + row.key + '"]');
+    const total = dish.nutrition?.total?.[row.key];
+    const target = targets[row.key];
+    const value = nutritionCore.coverage(total, target, row.key);
+    reconcileChildren(container, value ? ['coverage'] : [], () => {
+      const meter = document.createElement('div');
+      meter.className = 'nutrient-coverage';
+      meter.innerHTML = '<div class="coverage-amount"></div><div class="coverage-track" role="meter">' +
+        '<span class="coverage-fill"></span></div>';
+      return meter;
+    }, false, true);
+    if (!value) continue;
+    const meter = container.querySelector('[data-key="coverage"]');
+    const unit = row.key === 'kcal' ? 'kcal' : 'g';
+    meter.dataset.tone = value.tone;
+    meter.querySelector('.coverage-amount').textContent = nutritionCore.formatAmount(total) + ' / ' + target.amount;
+    const track = meter.querySelector('.coverage-track');
+    track.setAttribute('aria-label', row.label + ' · ' + prefs.meal.toLowerCase() + ' coverage');
+    track.setAttribute('aria-valuemin', '0');
+    track.setAttribute('aria-valuemax', String(Math.max(total, target.ref.amount.high)));
+    track.setAttribute('aria-valuenow', String(total));
+    track.setAttribute('aria-valuetext', nutritionCore.formatAmount(total) + ' ' + unit + '. ' + value.description);
+    meter.style.setProperty('--coverage', String(value.fill));
+  }
+  dishCoverageCache.set(node, key);
 }
 
 /* ---------- content: mensa sections ---------- */
@@ -1206,11 +1361,11 @@ function nutritionTableHTML(nutrition) {
   const p100 = nutrition.p100 || {};
   const total = nutrition.total || {};
   const rows = NUTRITION_ROWS.map((row) =>
-    '<tr>' +
+    '<tr class="nutrient-values">' +
     '<td class="n-label">' + row.label + '</td>' +
     '<td class="n-val">' + fmtCell(p100[row.key], row.key) + '</td>' +
     '<td class="n-val">' + fmtCell(total[row.key], row.key) + '</td>' +
-    '</tr>'
+    '</tr><tr class="nutrient-meter-row"><td colspan="3"><div class="nutrient-progress" data-nutrient="' + row.key + '"></div></td></tr>'
   ).join('');
 
   return '<table class="nutrition-table">' +
@@ -1315,7 +1470,7 @@ function updateHoursLines() {
 function dishKey(m, d, i) {
   // NOTE: index MUST be the last segment — reconcileChildren's makeEl
   // recovers the dish via key.split('|').pop().
-  return prefs.meal + '|' + (d.line || '') + '|' + (d.dish || '') + '|' + i;
+  return selectedDate + '|' + prefs.meal + '|' + (d.line || '') + '|' + (d.dish || '') + '|' + i;
 }
 
 /**
@@ -1369,6 +1524,11 @@ function renderContent() {
       node.dataset.fresh = '1'; // new dish this render (photo at natural height)
       return node;
     }, false, true);
+    const dishNodes = new Map(Array.from(body.children).filter(node => !node.dataset.exiting).map(node => [node.dataset.key, node]));
+    dishes.forEach((dish, index) => {
+      const node = dishNodes.get(dishKey(m, dish, index));
+      if (node) updateDishCoverage(node, dish);
+    });
     // enter/exit symmetry: replaced dishes (date/meal swap) shrink out
     // (animateExit) while the new ones grow in (animateEnter) — the
     // section height changes continuously, so even an equal-height swap
@@ -1719,6 +1879,7 @@ function bindEvents() {
   selector.addEventListener('input', (e) => {
     if (e.target.id === 'group-input') { groupInput = e.target.value; renderAll(); }
   });
+  selector.addEventListener('input', onNutritionInput);
   selector.addEventListener('focusout', (e) => {
     if (e.target.id !== 'group-input' || !groupEditing) return;
     if (groupInput.trim()) addCustomGroup();
@@ -1771,6 +1932,40 @@ function onSidebarTabKeydown(e) {
   sidebarTab = names[index];
   renderAll();
   document.getElementById('sidebar-tab-' + sidebarTab).focus();
+}
+
+function onNutritionInput(e) {
+  const {nutritionScope: scope, nutritionField: key} = e.target.dataset;
+  if (!scope || !nutritionCore) return;
+  const draftKey = scope + ':' + key;
+  nutritionDrafts.set(draftKey, e.target.value);
+  const profile = structuredClone(prefs.userProfile);
+  const settings = {...prefs.nutritionSettings};
+  const errors = new Map();
+  for (const [id, raw] of nutritionDrafts) {
+    const [group, name] = id.split(':');
+    const fields = group === 'profile' ? nutritionCore.PROFILE_FIELDS : [...nutritionCore.PLAN_FIELDS, ...nutritionCore.SETTING_FIELDS];
+    const field = fields.find(item => item.key === name);
+    try {
+      const value = nutritionCore.fieldValue(field, raw);
+      if (['lunchPercent', 'dinnerPercent'].includes(name) && value === undefined) throw new Error('Enter a share from 0 to 100.');
+      if (name === 'scope') {
+        for (const context of ['pregnant', 'lactating', 'requiresTherapeuticDiet']) delete profile[context];
+        if (value !== 'general') profile[value] = true;
+      } else nutritionCore.writePath(group === 'profile' ? profile : settings, name, value);
+    } catch (error) { errors.set(id, error.message); }
+  }
+  if (settings.lunchPercent + settings.dinnerPercent > 100) {
+    errors.set('settings:lunchPercent', 'Lunch and dinner together cannot exceed 100%.');
+    errors.set('settings:dinnerPercent', 'Lunch and dinner together cannot exceed 100%.');
+  }
+  nutritionErrors = errors;
+  if (!errors.size) {
+    prefs.userProfile = profile;
+    prefs.nutritionSettings = settings;
+    savePrefs();
+  }
+  renderAll();
 }
 
 function onSidebarClick(e) {
@@ -1879,6 +2074,8 @@ async function initAccountSync() {
         if (JSON.stringify(next.customGroups) !== JSON.stringify(prefs.customGroups) ||
             JSON.stringify(Array.from(next.hiddenGroups)) !== JSON.stringify(Array.from(prefs.hiddenGroups))) groupsUndo = null;
         prefs = next;
+        nutritionDrafts.clear();
+        nutritionErrors.clear();
         validatePrefsAgainstData(false);
       },
       onChange: onAccountChange,
@@ -2282,9 +2479,9 @@ async function init() {
   selectedDate = currentDate;
   updateDateHeading();
   bindEvents();
-  prefs = loadPrefs();
-
   try {
+    nutritionCore = await import('./nutrition.mjs?v=VER_PLACEHOLDER');
+    prefs = loadPrefs();
     const json = await fetchData();
     data = json;
     validatePrefsAgainstData();

@@ -203,7 +203,11 @@ class OutputPreservationTests(unittest.TestCase):
             self.assertEqual(report['mensaCount'], 32)
             self.assertEqual(report['sources']['ETH']['status'], 'ok')
             self.assertEqual(report['sources']['UZH']['status'], 'ok')
-            self.assertEqual({p.name for p in Path(directory).iterdir()}, {'data.json', 'index.txt', 'index.html', 'style.css', 'app.js', 'firebase-config.js', 'account-sync.mjs'})
+            self.assertEqual({p.name for p in Path(directory).iterdir()}, {'data.json', 'index.txt', 'index.html', 'style.css', 'app.js', 'firebase-config.js', 'account-sync.mjs', 'nutrition.mjs', 'nutrition-core'})
+            self.assertEqual({p.name for p in (Path(directory) / 'nutrition-core').iterdir()}, {'core.mjs', 'reference-data.mjs', 'hall.mjs'})
+            adapter = (Path(directory) / 'nutrition.mjs').read_text()
+            self.assertIn("from './nutrition-core/core.mjs?v=", adapter)
+            self.assertNotIn('../zmittag-nutrition-core/', adapter)
 
 
 class PublicationHealthTests(unittest.TestCase):

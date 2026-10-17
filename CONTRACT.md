@@ -135,11 +135,16 @@ header .header
     .account-avatar (Google sign-in; profile image after sign-in)
     .account-name / blue Login; Logout below the signed-in name
     .account-status, .account-action (only for actionable sync states)
+    #profile-fields (shared nutrition profile, below the account identity)
+    #planning-fields (editable lunch/dinner shares and applicable plan inputs)
   Setting tab:
+    GENERAL: #nutrition-settings-fields (standard and applicable calculation choices)
+    APPEARANCE: existing display toggles and theme control
     .photo-row (.mensa-row style; .selected = photos on; label "Show menu photos")
     #opening-row (.mensa-row .photo-row style; label "Show opening times")
     #price-row (.mensa-row .photo-row style; label "Show prices")
     #appearance-seg (light/dark/auto segmented switch)
+    LANGUAGE: English only
 #sidebar-dialog (one native modal for reset, cloud choice and connection errors)
   #sidebar-dialog-content (keyed prompt; focus containment, Escape, return focus)
 main#content
@@ -149,7 +154,11 @@ main#content
       .dish-main (.dish-label, .dish-name, .dish-desc)
       img.dish-photo (optional; HEIGHT transition 0->natural px on open,
         natural->0 + remove on close — NEVER opacity/fade)
-      .nutrition-col > table.nutrition-table (thead Nutrition|per 100g|Total; tbody 9 fixed rows)
+      .nutrition-col > table.nutrition-table (thead Nutrition|per 100g|Total;
+        9 nutrient value rows, each followed by a coverage holder row)
+        .nutrient-progress > .nutrient-coverage[data-key=coverage]
+          .coverage-amount (serving total / reference amount or range, g or kcal)
+          .coverage-track > .coverage-fill (colour only; accessible meter semantics)
 .raw-section (#raw-toggle button, #raw-panel > .raw-inner with #copy-btn, #raw-text)
   #raw-panel is a max-height disclosure (overflow hidden; JS animates)
 footer.footer
@@ -194,7 +203,7 @@ Every content change runs through the ONE pipeline:
 
 ## localStorage key: "eth-uzh-nutrition-prefs"
 ```json
-{"meal":"Lunch","selected":["eth-9","uzh-obere-mensa",...],"photos":true,"openingTimes":true,"prices":true,"theme":"light","customGroups":{"My Group":["eth-3",...]},"hiddenGroups":[],"collapsedMensas":[]}
+{"meal":"Lunch","selected":["eth-9","uzh-obere-mensa",...],"photos":true,"openingTimes":true,"prices":true,"theme":"light","customGroups":{"My Group":["eth-3",...]},"hiddenGroups":[],"collapsedMensas":[],"userProfile":{},"nutritionSettings":{"standard":"ch_blv","energyMethod":"standard","lunchPercent":40,"dinnerPercent":30,"proteinMealStrategy":"proportional","s3MacroPolicy":"individualized"}}
 ```
 - photos: bool, DEFAULT true (photos on — product owner); openingTimes/prices:
   bool, DEFAULT true, persisted through the same loadPrefs/savePrefs path.
@@ -222,14 +231,17 @@ Every content change runs through the ONE pipeline:
   lives in template/firebase-config.js; credentials and service-account keys
   never belong in the site. Account transport lives in account-sync.mjs.
 - Firestore document: users/{uid}/preferences/current, with schemaVersion:1,
-  prefs (the nine fields above), updatedAt (server timestamp). hiddenGroups
-  is optional in existing documents and defaults to an empty list. Rules permit
+  prefs (the fields above), updatedAt (server timestamp). hiddenGroups,
+  userProfile and nutritionSettings are optional in existing documents and
+  receive the same defaults as local storage. Rules permit
   only the authenticated Google user to get/create/update their own document;
   no public reads, collection lists or client deletes.
 - A new cloud document uploads the current local preferences automatically.
   Existing cloud preferences require an explicit local/cloud choice at an
   interactive login or a first visit on a new device. Cancel defers syncing;
   My Data keeps the choice available. Trusted session restores resume sync.
+  The choice applies to personal profile, nutrition settings, groups and all
+  other preferences together; no separate nutrition consent/conflict dialog.
 - Writes patch changed top-level preference fields. customGroups is replaced
   as a complete field, so group deletion/reset synchronizes correctly. Same
   field conflicts use server write order; independent fields are preserved.
@@ -238,3 +250,42 @@ Every content change runs through the ONE pipeline:
   snapshots alone determine new-account status. Account changes fence stale
   asynchronous callbacks. Dates, menus, names and avatars are not stored in
   the preference document. Sign-out retains local preferences.
+
+## Personal nutrition integration
+
+- `zmittag-nutrition-core/` remains the source of calculation formulas.
+  `template/nutrition.mjs` adapts its inputs, validates persisted fields and
+  chooses comparable references; it does not read the DOM or do network I/O.
+  The build packages the three core modules in `output/nutrition-core/` and
+  versions transitive imports. All 13 named standards remain selectable.
+- Shared profile: completed age, equation sex, height, weight, activity,
+  optional reference weight, applicable training inputs and scope flags.
+  Additional inputs appear through keyed reconciliation. Invalid drafts stay
+  visible for correction, are not persisted, and temporarily hide coverage.
+- Default standard is Swiss BLV. Lunch 40% and dinner 30% are explicitly
+  labelled, editable planning shares; the remainder is breakfast/snacks.
+  There is no hidden energy-equation fallback. Standards without an energy
+  method request an explicit equation or user-provided daily energy.
+  NICE/S3 use a user-entered deficit; China NHC uses the named 30–50%
+  maintenance reduction. ISSN dose and S3 macro strategies are selectable.
+- Target calculation is cached by profile/settings; both meals are computed
+  together. Rendering reads the active meal and dish data, never nutrition
+  values copied into DOM attributes. Existing dish/meter nodes survive profile
+  and standard changes. Dish keys include the date, never personal settings.
+- Every coverage holder is in FLIP_CONTAINERS; enter/exit uses the existing
+  reconciliation pipeline. Fill changes use transform with the shared Apple
+  easing at 350ms. First paint and reduced motion remain silent.
+- A bar requires a finite per-serving total (including zero) and a comparable
+  numeric reference. Per-100g values and weight are never used as substitutes.
+  Missing/undefined/out-of-scope and total-vs-free/added-sugar comparisons have
+  no bar. Standards' absent values are never filled from another standard.
+- Visible coverage contains only `current / reference g` (or kcal) and colour.
+  A range stays a range. Amber means below the reference/range, green means
+  covered/in-range or within an upper budget, red means above the selected
+  range/energy plan/upper budget. PRI/RDA/AI and minimums do not become upper
+  limits. For multiple references, upper/reduction budgets take priority, then
+  intake ranges/doses, then minima/reference values; all references remain in
+  accessible meter descriptions. Meal budgets are not medical safety limits.
+- Dark/auto palettes use identical coverage tokens. The meter's accessible
+  description conveys units, reference semantics and status without adding
+  visible status text to the colour-only presentation.

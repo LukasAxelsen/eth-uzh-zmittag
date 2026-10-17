@@ -1,12 +1,15 @@
 // Account transport is isolated from the page and animation pipeline.
-// Only persisted preferences travel to Firestore, never menu dates or profiles.
-const KEYS = ['meal', 'selected', 'photos', 'openingTimes', 'prices', 'theme', 'customGroups', 'hiddenGroups', 'collapsedMensas'];
+// The personal nutrition profile shares the same document and conflict choice.
+import {DEFAULT_NUTRITION, validNutritionPreferences} from './nutrition.mjs';
+const KEYS = ['meal', 'selected', 'photos', 'openingTimes', 'prices', 'theme', 'customGroups', 'hiddenGroups', 'collapsedMensas', 'userProfile', 'nutritionSettings'];
+const withDefaults = value => ({hiddenGroups: [], userProfile: {}, nutritionSettings: {...DEFAULT_NUTRITION}, ...value});
 const copy = value => JSON.parse(JSON.stringify(value));
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
-const changed = (before, after) => Object.fromEntries(KEYS.filter(key => !same(before[key], after[key])).map(key => [key, after[key]]));
+const changed = (before, after) => Object.fromEntries(KEYS.filter(key => Object.hasOwn(after, key) && !same(before[key], after[key])).map(key => [key, after[key]]));
 
 function validPreferences(p) {
   return p && typeof p === 'object' && ['Lunch', 'Dinner'].includes(p.meal) &&
+    validNutritionPreferences(p) &&
     ['light', 'dark', 'auto'].includes(p.theme) &&
     ['photos', 'openingTimes', 'prices'].every(key => typeof p[key] === 'boolean') &&
     ['selected', 'collapsedMensas'].every(key => Array.isArray(p[key]) && p[key].length <= 64 && p[key].every(id => typeof id === 'string')) &&
@@ -58,7 +61,7 @@ export function createPreferenceSync(adapter, {readPrefs, applyPrefs, onChange, 
       notify('error', 'invalid-cloud-preferences');
       return;
     }
-    remote = document ? {hiddenGroups: [], ...copy(document.prefs)} : null;
+    remote = document ? withDefaults(copy(document.prefs)) : null;
     if (choosing) return; // Keep the newest remote data for the eventual choice.
     if (!ready) {
       if (remote && (!resume || interactive)) {
@@ -101,7 +104,7 @@ export function createPreferenceSync(adapter, {readPrefs, applyPrefs, onChange, 
     try {
       const saved = JSON.parse(storage.getItem(cacheKey()));
       if (saved && saved.baseline && saved.pending && validPreferences({...saved.baseline, ...saved.pending})) {
-        resume = {...saved, baseline: {hiddenGroups: [], ...saved.baseline}};
+        resume = {...saved, baseline: withDefaults(saved.baseline)};
       }
     } catch { /* a first login always asks before replacing existing cloud data */ }
     notify(adapter.isOnline() ? 'connecting' : 'offline');

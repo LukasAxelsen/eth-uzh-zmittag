@@ -188,6 +188,23 @@ python3 scripts/build-test-preview.py --output /tmp/menu-fixture-preview
 python3 -m http.server 8001 --bind 127.0.0.1 --directory /tmp/menu-fixture-preview
 ```
 
+## Personal nutrition
+
+Personal nutrition is available in **My Data**, below the Google account.
+Profiles save locally and share the existing account synchronization and
+local/cloud choice with mensa selections, groups and settings. **Setting** has
+General (13 nutrition standards and calculation choices), Appearance, and
+Language (English). The default is Swiss BLV with an editable 40% lunch / 30%
+dinner planning split. Some standards require additional profile or plan inputs.
+
+Dish coverage compares only supplied/calculated serving **Total** values with
+the active meal's applicable reference. Bars show `current / reference` amounts
+and colour; missing totals, undefined targets and incompatible sugar definitions
+have no bar. Reference ranges and upper budgets keep their original meaning.
+The original calculation core is packaged by `menu.py` without formula changes.
+Run `node scripts/test-nutrition.mjs` and `node zmittag-nutrition-core/test/run.mjs`
+alongside the existing checks; browser tests also exercise the profile and bars.
+
 ## Deployment
 
 The [menu workflow](.github/workflows/menu.yml) runs on a schedule at 03:17
