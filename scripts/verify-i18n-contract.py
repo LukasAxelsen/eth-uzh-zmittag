@@ -16,6 +16,7 @@ catalogs together with the lock.
 """
 
 import hashlib
+import importlib.util
 import json
 import re
 import subprocess
@@ -64,6 +65,10 @@ def node_json(module, expression):
 
 def digest(value):
     return hashlib.sha256(json.dumps(value, ensure_ascii=False).encode("utf-8")).hexdigest()[:16]
+
+
+def digest_file(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def placeholders(text):
@@ -303,6 +308,87 @@ check("account sync carries and validates language",
       "'language'" in sync and "LANGUAGE_CODES.includes(p.language)" in sync and "from './i18n.mjs'" in sync)
 menu = (ROOT / "menu.py").read_text(encoding="utf-8")
 check("menu.py publishes i18n.mjs and every catalog", "'i18n.mjs'" in menu and "'i18n/' + name" in menu)
+
+# ---------------------------------------------------------------- CJK typography
+print("== F. CJK typography (regional Han glyph forms, self-hosted heading serif) ==")
+CSS = (TEMPLATE / "style.css").read_text(encoding="utf-8")
+FONT_DIR = TEMPLATE / "fonts"
+# Han code points are shared; glyph forms differ per standard. Every CJK-capable
+# family is classified so a stack can never borrow another region's glyphs.
+REGION_FONTS = {
+    "SC": {"PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC",
+           "Noto Sans SC", "Songti SC", "Noto Serif CJK SC", "Source Han Serif SC", "Noto Serif SC", "SimSun",
+           "Zmittag Heading SC"},
+    "TC": {"PingFang TC", "Microsoft JhengHei", "Noto Sans CJK TC", "Source Han Sans TC", "Noto Sans TC",
+           "Songti TC", "Noto Serif CJK TC", "Source Han Serif TC", "Noto Serif TC", "PMingLiU",
+           "Zmittag Heading TC"},
+    "JP": {"Hiragino Sans", "Hiragino Kaku Gothic ProN", "Meiryo", "Yu Gothic", "YuGothic", "Noto Sans CJK JP",
+           "Source Han Sans JP", "Noto Sans JP", "Hiragino Mincho ProN", "Yu Mincho", "YuMincho",
+           "Noto Serif CJK JP", "Source Han Serif JP", "Noto Serif JP", "Zmittag Heading JP"},
+}
+LATIN_FONTS = {"-apple-system", "BlinkMacSystemFont", "SF Pro Text", "Helvetica Neue", "Helvetica", "Arial",
+               "ui-serif", "New York", "Georgia", "Times New Roman", "ui-monospace", "SF Mono", "SFMono-Regular",
+               "Menlo", "Consolas", "sans-serif", "serif", "monospace"}
+CJK_REGION = {"zh-Hans": "SC", "zh-Hant": "TC", "ja": "JP"}
+TOKENS = ("--font", "--font-serif", "--font-mono")
+
+
+def stacks(block):
+    found = {}
+    for token in TOKENS:
+        m = re.search(re.escape(token) + r":\s*([^;]+);", block)
+        if m:
+            found[token] = [f.strip().strip('"') for f in m.group(1).replace("\n", " ").split(",")]
+    return found
+
+
+root_block = re.search(r":root\s*\{(.*?)\n\}", CSS, re.S).group(1)
+base = stacks(root_block)
+check("base stacks name no CJK fonts (non-CJK languages never force a region)",
+      set(base) == set(TOKENS) and all(f in LATIN_FONTS for families in base.values() for f in families),
+      {t: [f for f in fs if f not in LATIN_FONTS] for t, fs in base.items()})
+check("no system-ui anywhere (on CJK Windows it is the system region's UI font)",
+      "system-ui" not in re.sub(r"/\*.*?\*/", "", CSS, flags=re.S))
+manifest_path = FONT_DIR / "heading-fonts.json"
+manifest = json.loads(manifest_path.read_text(encoding="utf-8")) if manifest_path.exists() else {"fonts": {}}
+spec = importlib.util.spec_from_file_location("heading_fonts", ROOT / "scripts" / "build-heading-fonts.py")
+heading_fonts = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(heading_fonts)  # shares heading_characters() with the font build
+for code in codes:
+    region = CJK_REGION.get(code) or (code.startswith(("zh", "ja")) and "?")
+    if not region:
+        continue
+    block = re.search(r":lang\(" + re.escape(code) + r"\)\s*\{(.*?)\}", CSS, re.S)
+    found = stacks(block.group(1)) if block else {}
+    foreign = [f for families in found.values() for f in families
+               if f not in LATIN_FONTS and f not in REGION_FONTS.get(region, set())]
+    check(f"{code}: --font/--font-serif/--font-mono name only {region} fonts after the Latin ones",
+          set(found) == set(TOKENS) and not foreign and
+          all(any(f in REGION_FONTS[region] for f in families) for families in found.values()), foreign or found)
+    entry = manifest["fonts"].get(code)
+    font_file = FONT_DIR / entry["file"] if entry else None
+    check(f"{code}: heading subset exists and matches its manifest",
+          bool(font_file) and font_file.exists() and digest_file(font_file) == entry["sha256"],
+          "run scripts/build-heading-fonts.py")
+    if not entry:
+        continue
+    needed = heading_fonts.heading_characters(catalogs[code])
+    missing = "".join(c for c in needed if c not in entry["characters"])
+    check(f"{code}: subset covers every character the heading can show", not missing,
+          f"missing {missing!r}: run scripts/build-heading-fonts.py")
+    face = re.search(r"@font-face\s*\{[^}]*font-family:\s*\"" + re.escape(entry["family"]) + r"\"[^}]*\}", CSS)
+    check(f"{code}: @font-face serves fonts/{entry['file']} at the heading weight, first in --font-serif",
+          bool(face) and f'url("fonts/{entry["file"]}' in face.group(0) and
+          f"font-weight: {manifest['weight']};" in face.group(0) and
+          found.get("--font-serif", [None])[0] == entry["family"])
+heading_rule = re.search(r"#date-heading\s*\{([^}]*)\}", CSS).group(1)
+check("the heading uses the language's serif token at the subset weight",
+      "font-family: var(--font-serif);" in heading_rule and f"font-weight: {manifest.get('weight')};" in heading_rule)
+check("the licence ships with the fonts", (FONT_DIR / "OFL.txt").exists())
+check("language options carry their own lang (native names keep their glyph forms)",
+      "option.lang = code" in app and "option[lang] { font-family: var(--font); }" in CSS)
+check("menu.py publishes the fonts and versions their URLs",
+      "'fonts/' + name" in menu and "css.replace(\"VER_PLACEHOLDER\", rev)" in menu)
 
 print()
 if FAILURES:

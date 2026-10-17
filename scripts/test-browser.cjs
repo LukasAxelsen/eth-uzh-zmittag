@@ -12,8 +12,9 @@ const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'menu-browser-'));
 const server = http.createServer((req, res) => {
   const name = new URL(req.url, 'http://localhost').pathname.slice(1) || 'index.html';
   if (!['index.html', 'app.js', 'firebase-config.js', 'account-sync.mjs', 'nutrition.mjs', 'i18n.mjs', 'nutrition-core/core.mjs', 'nutrition-core/hall.mjs', 'nutrition-core/reference-data.mjs', 'style.css', 'data.json', 'index.txt'].includes(name) &&
-      !/^i18n\/[\w-]+\.json$/.test(name)) { res.writeHead(404).end(); return; }
-  res.setHeader('Content-Type', (/\.(m?js)$/.test(name) ? 'text/javascript' : /\.json$/.test(name) ? 'application/json' : ({'style.css': 'text/css'})[name]) || 'text/html');
+      !/^i18n\/[\w-]+\.json$/.test(name) && !/^fonts\/[\w-]+\.woff2$/.test(name)) { res.writeHead(404).end(); return; }
+  res.setHeader('Content-Type', (/\.(m?js)$/.test(name) ? 'text/javascript' : /\.json$/.test(name) ? 'application/json' :
+    /\.woff2$/.test(name) ? 'font/woff2' : ({'style.css': 'text/css'})[name]) || 'text/html');
   if (name === 'firebase-config.js') { res.end('window.ZMITTAG_FIREBASE_CONFIG = null;'); return; }
   res.end(fs.readFileSync(path.join(directory, name)));
 });
@@ -315,6 +316,70 @@ async function verifyNutrition(browser, url) {
   console.log('PASS: nutrition — persisted profile, Total-only bars, reference semantics, invalid/recovered inputs, cached calculations, reused dishes/meters, standard switches, 320/390px, dark mode and reduced motion');
 }
 
+/** Fonts Chromium actually used for a node's text (DevTools protocol). */
+async function platformFonts(page, selector) {
+  const client = await page.context().newCDPSession(page);
+  await client.send('DOM.enable');
+  await client.send('CSS.enable');
+  const {root} = await client.send('DOM.getDocument', {depth: -1});
+  const {nodeId} = await client.send('DOM.querySelector', {nodeId: root.nodeId, selector});
+  const {fonts} = await client.send('CSS.getPlatformFontsForNode', {nodeId});
+  await client.detach();
+  return fonts;
+}
+
+// System CJK fonts by the standard their Han glyphs follow (whatever this machine has installed).
+const REGIONAL_FONT = /^(?:Noto (?:Sans|Serif) CJK (SC|TC|HK|JP|KR)|Source Han (?:Sans|Serif) (SC|TC|HK|JP|KR)|PingFang (SC|TC|HK)|(Hiragino|Meiryo|Yu Gothic|Yu Mincho|IPA)|(Microsoft YaHei|SimSun)|(Microsoft JhengHei|PMingLiU))/;
+function fontRegion(family) {
+  const m = REGIONAL_FONT.exec(family);
+  if (!m) return null;
+  return m[1] || m[2] || m[3] || (m[4] && 'JP') || (m[5] && 'SC') || (m[6] && 'TC');
+}
+
+async function verifyCjkTypography(browser, url) {
+  const context = await browser.newContext({viewport: {width: 1280, height: 900}});
+  const page = await context.newPage();
+  const errors = []; page.on('pageerror', error => errors.push(error.message));
+  await page.clock.install({time: new Date('2026-10-14T10:00:00Z')});
+  const seen = [];
+  for (const [code, region, heading] of [['zh-Hans', 'SC', '10月14日 星期三'], ['zh-Hant', 'TC', '10月14日 星期三'], ['ja', 'JP', '10月14日（水曜日）']]) {
+    await page.goto(url);
+    await page.evaluate(language => localStorage.setItem('eth-uzh-nutrition-prefs', JSON.stringify({selected: ['eth-9'], photos: false, language})), code);
+    await page.reload(); await page.waitForSelector('html.anim-ready');
+    await page.evaluate(() => document.fonts.ready);
+    assert.equal(await page.locator('#date-heading').innerText(), heading);
+    // Every heading glyph comes from the self-hosted regional serif, on any platform.
+    const headingFonts = await platformFonts(page, '#date-heading');
+    assert.deepEqual(headingFonts.map(f => [f.familyName, f.isCustomFont]), [[`Noto Serif ${region} SemiBold`, true]], `${code} heading serif`);
+    assert.ok(['normal', '0px'].includes(await page.locator('#date-heading').evaluate(el => getComputedStyle(el).letterSpacing)), 'Han text is set solid');
+    // UI text: whichever regional system font renders it must follow this language's standard.
+    for (const selector of ['.header .seg-option[data-meal="Lunch"]', '#sidebar-tab-setting', '.nutrient-values .n-label', '#raw-toggle']) {
+      for (const font of await platformFonts(page, selector)) {
+        seen.push(`${code} ${selector}: ${font.familyName}`);
+        const fontsRegion = fontRegion(font.familyName);
+        assert.ok(fontsRegion === null || fontsRegion === region, `${code} ${selector} rendered with ${font.familyName}`);
+      }
+    }
+    const stack = await page.locator('body').evaluate(el => getComputedStyle(el).fontFamily);
+    assert.match(stack, /^-apple-system, BlinkMacSystemFont, "SF Pro Text"/, 'Latin text keeps the SF stack');
+    if (process.env.LANGUAGE_SCREENSHOTS) await page.locator('.header').screenshot({path: path.join(process.env.LANGUAGE_SCREENSHOTS, `heading-${code}.png`)});
+  }
+  // Native names in the picker keep their own standard in any interface language.
+  assert.deepEqual(await page.locator('#site-language option').evaluateAll(options => options.map(o => o.lang)), LANGUAGE_CODES);
+  // Non-CJK languages keep New York / Georgia and never download a CJK font.
+  await page.evaluate(() => localStorage.setItem('eth-uzh-nutrition-prefs', JSON.stringify({selected: ['eth-9'], language: 'de'})));
+  const fontRequests = [];
+  page.on('request', request => { if (/\.woff2/.test(request.url())) fontRequests.push(request.url()); });
+  await page.reload(); await page.waitForSelector('html.anim-ready');
+  await page.evaluate(() => document.fonts.ready);
+  assert.equal((await platformFonts(page, '#date-heading')).some(f => f.isCustomFont), false);
+  assert.deepEqual(fontRequests, []);
+  if (process.env.CJK_FONT_LOG) console.log(seen.join('\n'));
+  assert.deepEqual(errors, []);
+  await context.close();
+  console.log('PASS: CJK typography — regional heading serif (SC/TC/JP subsets), regional UI glyphs, option lang, no CJK font for other languages');
+}
+
 /** Visible text or labels that are raw catalog keys (a missing translation path). */
 function leakedKeys(page) {
   return page.evaluate(() => {
@@ -525,6 +590,7 @@ async function verifyLanguages(browser, url) {
     await verifyAccountUI(browser, url);
     await verifyNutrition(browser, url);
     await verifyLanguages(browser, url);
+    await verifyCjkTypography(browser, url);
 
     const reduced = await browser.newContext({reducedMotion: 'reduce'});
     const reducedPage = await reduced.newPage();

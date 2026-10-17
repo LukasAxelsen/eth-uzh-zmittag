@@ -203,7 +203,15 @@ class OutputPreservationTests(unittest.TestCase):
             self.assertEqual(report['mensaCount'], 32)
             self.assertEqual(report['sources']['ETH']['status'], 'ok')
             self.assertEqual(report['sources']['UZH']['status'], 'ok')
-            self.assertEqual({p.name for p in Path(directory).iterdir()}, {'data.json', 'index.txt', 'index.html', 'style.css', 'app.js', 'firebase-config.js', 'account-sync.mjs', 'nutrition.mjs', 'nutrition-core', 'i18n.mjs', 'i18n'})
+            self.assertEqual({p.name for p in Path(directory).iterdir()}, {'data.json', 'index.txt', 'index.html', 'style.css', 'app.js', 'firebase-config.js', 'account-sync.mjs', 'nutrition.mjs', 'nutrition-core', 'i18n.mjs', 'i18n', 'fonts'})
+            fonts = ROOT / 'template' / 'fonts'
+            self.assertEqual({p.name for p in (Path(directory) / 'fonts').iterdir()},
+                             {p.name for p in fonts.iterdir() if p.suffix in ('.woff2', '.txt')})
+            for font in fonts.glob('*.woff2'):
+                self.assertEqual((Path(directory) / 'fonts' / font.name).read_bytes(), font.read_bytes())
+            css = (Path(directory) / 'style.css').read_text(encoding='utf-8')
+            self.assertIn('url("fonts/heading-sc.woff2?v=', css)
+            self.assertNotIn('VER_PLACEHOLDER', css)
             self.assertEqual({p.name for p in (Path(directory) / 'nutrition-core').iterdir()}, {'core.mjs', 'reference-data.mjs', 'hall.mjs'})
             adapter = (Path(directory) / 'nutrition.mjs').read_text()
             self.assertIn("from './nutrition-core/core.mjs?v=", adapter)
