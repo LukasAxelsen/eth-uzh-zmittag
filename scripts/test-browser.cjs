@@ -293,6 +293,7 @@ async function verifyNutrition(browser, url) {
     assert.match(await hint.locator('a').nth(0).getAttribute('href'), /wikipedia\.org/);
     await page.locator('#nutrition-settings-standard').selectOption('who');
     assert.match(await page.locator('#nutrition-settings-standard-hint').innerText(), /^WHO \(Wikipedia, official site\)/);
+    await page.locator('#nutrition-settings-standard').selectOption('ch_blv');
     await settle(page);
     assert.equal(await dish.locator('[role="meter"]').count(), 7);
     if (process.env.NUTRITION_SCREENSHOTS) await page.screenshot({path: path.join(process.env.NUTRITION_SCREENSHOTS, `nutrition-settings-${width}.png`)});
