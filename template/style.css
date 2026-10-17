@@ -59,7 +59,7 @@
    Taiwan, Japanese = JIS. The same code point (直, 骨, 写 …) is drawn
    differently per standard, so each language names only its own fonts:
    Apple (PingFang / Hiragino), Windows (YaHei / JhengHei / Meiryo), Linux
-   (Noto / Source Han); Android has no named fonts and picks the matching
+   (Noto / Source Han, then WenQuanYi / IPA); Android has no named fonts and picks the matching
    Noto CJK face from `lang`. The Latin fonts first contain no Han glyphs,
    so Latin text keeps SF while every Han character falls through to the
    region's font. No `system-ui`: on CJK Windows it is the UI font of the
@@ -69,7 +69,7 @@
 :lang(zh-Hans) {
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial,
           "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC",
-          "Noto Sans SC", sans-serif;
+          "Noto Sans SC", "WenQuanYi Micro Hei", "WenQuanYi Zen Hei", sans-serif;
   --font-serif: "Zmittag Heading SC", "Songti SC", "Noto Serif CJK SC", "Source Han Serif SC",
                 "Noto Serif SC", SimSun, serif;
   --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas,
@@ -87,11 +87,12 @@
 :lang(ja) {
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial,
           "Hiragino Sans", "Hiragino Kaku Gothic ProN", Meiryo, "Yu Gothic", YuGothic,
-          "Noto Sans CJK JP", "Source Han Sans JP", "Noto Sans JP", sans-serif;
+          "Noto Sans CJK JP", "Source Han Sans JP", "Noto Sans JP", "IPAexGothic", "IPAPGothic",
+          "IPAGothic", sans-serif;
   --font-serif: "Zmittag Heading JP", "Hiragino Mincho ProN", "Yu Mincho", YuMincho,
-                "Noto Serif CJK JP", "Source Han Serif JP", "Noto Serif JP", serif;
+                "Noto Serif CJK JP", "Source Han Serif JP", "Noto Serif JP", "IPAexMincho", "IPAMincho", serif;
   --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas,
-               "Hiragino Sans", Meiryo, "Noto Sans CJK JP", monospace;
+               "Hiragino Sans", Meiryo, "Noto Sans CJK JP", "IPAGothic", monospace;
 }
 option[lang] { font-family: var(--font); }
 @font-face {

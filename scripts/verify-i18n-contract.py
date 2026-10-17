@@ -317,14 +317,15 @@ FONT_DIR = TEMPLATE / "fonts"
 # family is classified so a stack can never borrow another region's glyphs.
 REGION_FONTS = {
     "SC": {"PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC",
-           "Noto Sans SC", "Songti SC", "Noto Serif CJK SC", "Source Han Serif SC", "Noto Serif SC", "SimSun",
+           "Noto Sans SC", "WenQuanYi Micro Hei", "WenQuanYi Zen Hei", "Songti SC", "Noto Serif CJK SC", "Source Han Serif SC", "Noto Serif SC", "SimSun",
            "Zmittag Heading SC"},
     "TC": {"PingFang TC", "Microsoft JhengHei", "Noto Sans CJK TC", "Source Han Sans TC", "Noto Sans TC",
            "Songti TC", "Noto Serif CJK TC", "Source Han Serif TC", "Noto Serif TC", "PMingLiU",
            "Zmittag Heading TC"},
     "JP": {"Hiragino Sans", "Hiragino Kaku Gothic ProN", "Meiryo", "Yu Gothic", "YuGothic", "Noto Sans CJK JP",
            "Source Han Sans JP", "Noto Sans JP", "Hiragino Mincho ProN", "Yu Mincho", "YuMincho",
-           "Noto Serif CJK JP", "Source Han Serif JP", "Noto Serif JP", "Zmittag Heading JP"},
+           "Noto Serif CJK JP", "Source Han Serif JP", "Noto Serif JP", "IPAexGothic", "IPAPGothic", "IPAGothic",
+           "IPAexMincho", "IPAMincho", "Zmittag Heading JP"},
 }
 LATIN_FONTS = {"-apple-system", "BlinkMacSystemFont", "SF Pro Text", "Helvetica Neue", "Helvetica", "Arial",
                "ui-serif", "New York", "Georgia", "Times New Roman", "ui-monospace", "SF Mono", "SFMono-Regular",

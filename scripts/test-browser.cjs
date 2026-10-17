@@ -329,7 +329,8 @@ async function platformFonts(page, selector) {
 }
 
 // System CJK fonts by the standard their Han glyphs follow (whatever this machine has installed).
-const REGIONAL_FONT = /^(?:Noto (?:Sans|Serif) CJK (SC|TC|HK|JP|KR)|Source Han (?:Sans|Serif) (SC|TC|HK|JP|KR)|PingFang (SC|TC|HK)|(Hiragino|Meiryo|Yu Gothic|Yu Mincho|IPA)|(Microsoft YaHei|SimSun)|(Microsoft JhengHei|PMingLiU))/;
+// Needs a font of each standard installed (CI installs fonts-noto-cjk; macOS/Windows ship their own).
+const REGIONAL_FONT = /^(?:Noto (?:Sans|Serif) CJK (SC|TC|HK|JP|KR)|Source Han (?:Sans|Serif) (SC|TC|HK|JP|KR)|PingFang (SC|TC|HK)|(Hiragino|Meiryo|Yu Gothic|Yu Mincho|IPA)|(Microsoft YaHei|SimSun|WenQuanYi|Droid Sans Fallback)|(Microsoft JhengHei|PMingLiU))/;
 function fontRegion(family) {
   const m = REGIONAL_FONT.exec(family);
   if (!m) return null;
@@ -357,7 +358,8 @@ async function verifyCjkTypography(browser, url) {
       for (const font of await platformFonts(page, selector)) {
         seen.push(`${code} ${selector}: ${font.familyName}`);
         const fontsRegion = fontRegion(font.familyName);
-        assert.ok(fontsRegion === null || fontsRegion === region, `${code} ${selector} rendered with ${font.familyName}`);
+        assert.ok(fontsRegion === null || fontsRegion === region,
+          `${code} ${selector} rendered with ${font.familyName} (needs a ${region} font, e.g. fonts-noto-cjk)`);
       }
     }
     const stack = await page.locator('body').evaluate(el => getComputedStyle(el).fontFamily);
