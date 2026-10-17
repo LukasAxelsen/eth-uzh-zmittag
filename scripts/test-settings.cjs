@@ -18,6 +18,8 @@ const context = vm.createContext({ console, Intl, Date, setTimeout, clearTimeout
 });
 vm.runInContext(source, context);
 context.closed = closed;
+context.enCatalog = JSON.parse(fs.readFileSync(path.join(__dirname, '../template/i18n/en.json'), 'utf8'));
+vm.runInContext('catalogs.set("en", enCatalog)', context);
 
 (async () => {
   vm.runInContext('prefs = loadPrefs(); data = { days: { "2026-10-12": normalizeMensas([closed]) } }; selectedDate = "2026-10-12"', context);
@@ -37,6 +39,14 @@ context.closed = closed;
   assert.equal(vm.runInContext('prefs.openingTimes && prefs.prices', context), true, 'on survives reload');
   stored = JSON.stringify({ meal: 'Lunch', photos: false });
   assert.equal(vm.runInContext('loadPrefs().openingTimes && loadPrefs().prices', context), true, 'old storage uses current defaults');
+  assert.equal(JSON.parse(stored).language, undefined);
+  vm.runInContext('prefs = loadPrefs(); savePrefs();', context);
+  assert.equal(JSON.parse(stored).language, 'en', 'the language joins the stored preferences');
+  // Raw/AI text keeps the index.txt format whatever the interface language.
+  context.dishCatalog = { ...context.enCatalog, 'nutrient.kcal': 'Energie' };
+  vm.runInContext('catalogs.set("de", dishCatalog); prefs.language = "de";', context);
+  assert.equal(vm.runInContext('nutriSegment({kcal: 152}, false)', context), 'kcal=152');
+  assert.match(vm.runInContext('nutritionTableHTML({p100: {kcal: 1}, total: {}})', context), />Energie</);
   console.log('PASS: confirmed closure, ordinary empty menu, missing date and zero-value raw text');
-  console.log('PASS: opening-times/prices off and on persist; old storage defaults remain on');
+  console.log('PASS: opening-times/prices off and on persist; old storage defaults remain on; language persists, raw text stays untranslated');
 })().catch(err => { console.error(err); process.exitCode = 1; });

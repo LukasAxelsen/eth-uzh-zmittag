@@ -1,7 +1,8 @@
 // Account transport is isolated from the page and animation pipeline.
 // The personal nutrition profile shares the same document and conflict choice.
 import {DEFAULT_NUTRITION, validNutritionPreferences} from './nutrition.mjs';
-const KEYS = ['meal', 'selected', 'photos', 'openingTimes', 'prices', 'theme', 'customGroups', 'hiddenGroups', 'collapsedMensas', 'userProfile', 'nutritionSettings'];
+import {LANGUAGE_CODES} from './i18n.mjs';
+const KEYS = ['meal', 'selected', 'photos', 'openingTimes', 'prices', 'theme', 'language', 'customGroups', 'hiddenGroups', 'collapsedMensas', 'userProfile', 'nutritionSettings'];
 const withDefaults = value => ({hiddenGroups: [], userProfile: {}, nutritionSettings: {...DEFAULT_NUTRITION}, ...value});
 const copy = value => JSON.parse(JSON.stringify(value));
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
@@ -11,6 +12,7 @@ function validPreferences(p) {
   return p && typeof p === 'object' && ['Lunch', 'Dinner'].includes(p.meal) &&
     validNutritionPreferences(p) &&
     ['light', 'dark', 'auto'].includes(p.theme) &&
+    (p.language === undefined || LANGUAGE_CODES.includes(p.language)) &&
     ['photos', 'openingTimes', 'prices'].every(key => typeof p[key] === 'boolean') &&
     ['selected', 'collapsedMensas'].every(key => Array.isArray(p[key]) && p[key].length <= 64 && p[key].every(id => typeof id === 'string')) &&
     (p.hiddenGroups === undefined || (Array.isArray(p.hiddenGroups) && p.hiddenGroups.length <= 64 && p.hiddenGroups.every(name => typeof name === 'string'))) &&

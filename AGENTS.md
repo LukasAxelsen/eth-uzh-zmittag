@@ -99,8 +99,9 @@ event handler -> mutate state only -> renderAll()
    JS measures only what CSS cannot express (scrollHeight for
    max-height disclosures, natural height for enter animations).
 6. **Contract scripts are part of the build.** `scripts/verify-anim-contract.py`
-   encodes prohibitions 1-10 + these decoupling rules as machine checks;
-   run it before every commit. If a new rule is needed, add the check
+   encodes prohibitions 1-10 + these decoupling rules as machine checks,
+   `scripts/verify-i18n-contract.py` the translation rules below;
+   run both before every commit. If a new rule is needed, add the check
    FIRST, then fix the code to pass it.
 
 ## Absolute prohibitions (each one cost a regression)
@@ -216,12 +217,42 @@ Do not "improve" or "simplify" them without a fresh explicit request.
 - Weekend/future-photo gaps are SOURCE behavior, not bugs: handle
   gracefully, never "fix" by fabricating data.
 
+## Translation rules (UI and nutrition only)
+
+`scripts/verify-i18n-contract.py` enforces these; run it before every commit.
+
+- **Scope**: interface and nutrition text are translated. Menu data is
+  NEVER translated — mensa, line and dish names, ingredients, prices,
+  opening hours, closure reasons, group names and the raw/AI text
+  (byte-identical with index.txt). Standard abbreviations (BLV, DGE/ÖGE,
+  S3, NG246, PAL, BMI …) stay verbatim in every language.
+- **One source**: `template/i18n/en.json`. Every language in
+  `template/i18n.mjs` has a catalog with exactly the same keys, key order,
+  `{placeholders}`, numbers and abbreviations. No English UI text in JS;
+  index.html keeps English only as the pre-JS first paint, and it must
+  equal en.json (`data-i18n` / `data-i18n-default` / `data-i18n-aria-label`).
+- **Keys are greppable**: `t('literal.key')`, never `t('prefix.' + x)`;
+  computed nutrition keys come from `nutrition.mjs` `messageKeys()`.
+- **Language is a preference**: `prefs.language` -> `renderAll()`. Reused
+  nodes update their text in place; the language never enters a
+  `data-key` (`dishKey`), so a switch never rebuilds or re-animates dishes.
+- **Picker**: sorted by English name, labelled "English name · native
+  name" (English once). Language names are never translated.
+- **Release workflow** (translate with AI at each version): change English
+  -> run the checker, which lists new/changed keys -> translate those keys
+  in every catalog -> rerun until green -> `--update-lock` -> commit the
+  catalogs and `source.lock.json` together. Never update the lock without
+  translating: the lock records which English every catalog was made from.
+- **Sync**: `language` is validated by `account-sync.mjs` (manifest codes)
+  and `firestore.rules` (same list). Deploy the rules before the frontend.
+
 ## Workflow (UI changes)
 
 1. Read this file + CONTRACT.md first.
 2. Make the change through the unified pipeline (state -> renderAll).
 3. Run `node --check template/app.js` and `python3 -m py_compile menu.py`.
-4. Run the contract check: `python3 scripts/verify-anim-contract.py`.
+4. Run the contract checks: `python3 scripts/verify-anim-contract.py`
+   and `python3 scripts/verify-i18n-contract.py`.
 5. Preview on localhost (regenerate `output/` first; bust cache with a
    `?v=` param) and verify behavior in a real browser.
 6. UI visual changes are NOT committed until the product owner confirms

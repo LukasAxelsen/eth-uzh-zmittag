@@ -142,6 +142,9 @@ input:focus-visible { outline: none; }
   letter-spacing: -0.01em;
   line-height: 1.1;
 }
+/* Chinese/Japanese may break between any two characters; keep the date and
+   the weekday whole so a narrow heading wraps only between them. */
+:lang(zh) #date-heading, :lang(ja) #date-heading { word-break: keep-all; }
 
 /* Date heading doubles as the calendar trigger. Hover/press reveal a
    slim rounded outline (affordance: "this opens something"), matching

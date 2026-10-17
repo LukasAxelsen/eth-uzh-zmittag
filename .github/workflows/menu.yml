@@ -27,7 +27,7 @@ jobs:
         with:
           node-version: '24'
           package-manager-cache: false
-      - name: Verify scraper, date selection and animation contract
+      - name: Verify scraper, date selection, animation and translation contracts
         run: |
           python3 scripts/test-menu.py
           python3 scripts/test-hardening.py
@@ -35,8 +35,10 @@ jobs:
           node scripts/test-settings.cjs
           node scripts/test-account-sync.mjs
           node scripts/test-nutrition.mjs
+          node scripts/test-i18n.mjs
           node zmittag-nutrition-core/test/run.mjs
           python3 scripts/verify-anim-contract.py
+          python3 scripts/verify-i18n-contract.py
       - name: Install browser test runtime
         run: |
           npm ci

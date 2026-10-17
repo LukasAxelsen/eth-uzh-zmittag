@@ -14,7 +14,7 @@
        (containing-block trap), which would break the slide while .app
        is translated off-screen. -->
   <button class="menu-btn" id="menu-btn" type="button"
-          aria-label="Toggle sidebar"
+          aria-label="Toggle sidebar" data-i18n-aria-label="page.toggleSidebar"
           aria-controls="selector" aria-expanded="false"></button>
 
   <div class="app" id="app">
@@ -25,7 +25,7 @@
            slim outline (affordance), click expands the date picker. -->
       <button class="date-trigger" id="date-trigger" type="button"
               aria-haspopup="dialog" aria-expanded="false">
-        <h1 id="date-heading">Loading…</h1>
+        <h1 id="date-heading" data-i18n-default="page.loading">Loading…</h1>
       </button>
 
       <!-- Calendar: IN THE DOCUMENT FLOW between the date and the meal
@@ -36,17 +36,14 @@
            clips (max-height:0 + overflow:hidden), and the frame's
            padding/border lives on .calendar-inner — a CHILD of the
            clipped box — so nothing lingers when collapsed. -->
-      <div class="calendar" id="calendar" aria-label="Pick a date">
+      <div class="calendar" id="calendar" aria-label="Pick a date" data-i18n-aria-label="calendar.pick">
         <div class="calendar-inner">
           <div class="calendar-head">
-            <button class="cal-nav" id="cal-prev" type="button" aria-label="Previous month">&lsaquo;</button>
+            <button class="cal-nav" id="cal-prev" type="button" aria-label="Previous month" data-i18n-aria-label="calendar.previous">&lsaquo;</button>
             <span class="cal-title" id="cal-title"></span>
-            <button class="cal-nav" id="cal-next" type="button" aria-label="Next month">&rsaquo;</button>
+            <button class="cal-nav" id="cal-next" type="button" aria-label="Next month" data-i18n-aria-label="calendar.next">&rsaquo;</button>
           </div>
-          <div class="cal-weekdays">
-            <span>Mon</span><span>Tue</span><span>Wed</span><span>Thu</span>
-            <span>Fri</span><span>Sat</span><span>Sun</span>
-          </div>
+          <div class="cal-weekdays" id="cal-weekdays"></div>
           <div class="cal-grid" id="cal-grid"></div>
           <div class="cal-note" id="cal-note"></div>
         </div>
@@ -55,10 +52,10 @@
       <!-- Lunch/Dinner segmented switch (iOS style).
            .seg-thumb is a CSS-driven sliding pill: fixed size at the
            track origin, moved purely by transform (see style.css). -->
-      <div class="segmented" aria-label="Meal time">
+      <div class="segmented" aria-label="Meal time" data-i18n-aria-label="meal.label">
         <span class="seg-thumb" aria-hidden="true"></span>
-        <button class="seg-option active" type="button" data-meal="Lunch" aria-pressed="true">Lunch</button>
-        <button class="seg-option" type="button" data-meal="Dinner" aria-pressed="false">Dinner</button>
+        <button class="seg-option active" type="button" data-meal="Lunch" aria-pressed="true" data-i18n="meal.lunch">Lunch</button>
+        <button class="seg-option" type="button" data-meal="Dinner" aria-pressed="false" data-i18n="meal.dinner">Dinner</button>
       </div>
     </header>
 
@@ -68,18 +65,18 @@
            12 fading blades rotating — pure CSS, compositor-friendly. -->
       <div class="loading">
         <span class="ios-spinner" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
-        Loading menu data…</div>
+        <span data-i18n="page.loadingMenu">Loading menu data…</span></div>
     </main>
 
     <!-- ====================== Raw data ======================= -->
     <div class="raw-section">
       <button id="raw-toggle" type="button"
-              aria-expanded="false" aria-controls="raw-panel">Show Raw Data</button>
+              aria-expanded="false" aria-controls="raw-panel" data-i18n-default="raw.show">Show Raw Data</button>
       <div id="raw-panel">
         <div class="raw-inner">
           <div class="raw-head">
-            <span class="raw-title">Raw Data</span>
-            <button class="copy-btn" id="copy-btn" type="button">Copy</button>
+            <span class="raw-title" data-i18n="raw.title">Raw Data</span>
+            <button class="copy-btn" id="copy-btn" type="button" data-i18n-default="raw.copy">Copy</button>
           </div>
           <pre class="raw-text" id="raw-text"></pre>
         </div>
@@ -93,25 +90,25 @@
         <a href="https://github.com/LukasAxelsen/eth-uzh-zmittag" target="_blank" rel="noopener">GitHub</a>
       </div>
       <div class="footer-sources">
-        ETH data via <a href="https://idapps.ethz.ch/cookpit-pub-services/v1/meals" target="_blank" rel="noopener">Cookpit API</a>
+        <span data-i18n="footer.ethVia">ETH data via</span> <a href="https://idapps.ethz.ch/cookpit-pub-services/v1/meals" target="_blank" rel="noopener">Cookpit API</a>
         &middot;
-        UZH data via <a href="https://app.food2050.ch" target="_blank" rel="noopener">Food2050</a>
+        <span data-i18n="footer.uzhVia">UZH data via</span> <a href="https://app.food2050.ch" target="_blank" rel="noopener">Food2050</a>
       </div>
-      <div class="footer-updated">Refresh scheduled at 03:17 / 07:17 UTC &middot; Built <span id="footer-date">DATE_PLACEHOLDER</span></div>
+      <div class="footer-updated"><span data-i18n="footer.refresh">Refresh scheduled at 03:17 / 07:17 UTC</span> &middot; <span data-i18n="footer.built">Built</span> <span id="footer-date">DATE_PLACEHOLDER</span></div>
     </footer>
   </div>
 
   <!-- Drawer motion is unchanged. All pages share the existing segmented control. -->
-  <div id="selector" aria-label="Sidebar" aria-hidden="true">
+  <div id="selector" aria-label="Sidebar" data-i18n-aria-label="page.sidebar" aria-hidden="true">
     <div class="sidebar-head">
-      <div class="segmented sidebar-tabs" id="sidebar-tabs" role="tablist" aria-label="Sidebar">
+      <div class="segmented sidebar-tabs" id="sidebar-tabs" role="tablist" aria-label="Sidebar" data-i18n-aria-label="page.sidebar">
         <span class="seg-thumb" aria-hidden="true"></span>
         <button class="seg-option active" id="sidebar-tab-mensas" role="tab" type="button"
-                data-tab="mensas" aria-controls="sidebar-page-mensas" aria-selected="true">Mensas</button>
+                data-tab="mensas" aria-controls="sidebar-page-mensas" aria-selected="true" data-i18n="tab.mensas">Mensas</button>
         <button class="seg-option" id="sidebar-tab-data" role="tab" type="button"
-                data-tab="data" aria-controls="sidebar-page-data" aria-selected="false" tabindex="-1">My Data</button>
+                data-tab="data" aria-controls="sidebar-page-data" aria-selected="false" tabindex="-1" data-i18n="tab.data">My Data</button>
         <button class="seg-option" id="sidebar-tab-setting" role="tab" type="button"
-                data-tab="setting" aria-controls="sidebar-page-setting" aria-selected="false" tabindex="-1">Setting</button>
+                data-tab="setting" aria-controls="sidebar-page-setting" aria-selected="false" tabindex="-1" data-i18n="tab.setting">Setting</button>
       </div>
     </div>
     <div id="sidebar-pages" class="selector-columns" data-motion="instant"></div>
@@ -125,9 +122,9 @@
       </section>
       <section class="selector-pane">
         <div class="groups-heading">
-          <h3 class="selector-pane-title">Groups</h3>
-          <button class="sidebar-text" id="groups-reset" type="button" aria-label="Reset groups">Reset</button>
-          <button class="sidebar-icon" id="groups-undo" type="button" title="Undo group change" aria-label="Undo group change" disabled>
+          <h3 class="selector-pane-title" data-i18n="groups.title">Groups</h3>
+          <button class="sidebar-text" id="groups-reset" type="button" aria-label="Reset groups" data-i18n-aria-label="groups.resetLabel" data-i18n="groups.reset">Reset</button>
+          <button class="sidebar-icon" id="groups-undo" type="button" title="Undo group change" aria-label="Undo group change" data-i18n-title="groups.undo" data-i18n-aria-label="groups.undo" disabled>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m8 4-5 5 5 5M3 9h10a7 7 0 0 1 0 14" transform="translate(0 -2)"/></svg>
           </button>
         </div>
@@ -142,26 +139,26 @@
 
   <template id="sidebar-template-data">
     <div class="sidebar-page" id="sidebar-page-data" role="tabpanel" aria-labelledby="sidebar-tab-data">
-      <section class="account-pane" aria-label="Your account">
-        <button class="account-avatar" id="account-avatar" type="button" aria-label="Sign in with Google">
+      <section class="account-pane" aria-label="Your account" data-i18n-aria-label="account.label">
+        <button class="account-avatar" id="account-avatar" type="button" aria-label="Sign in with Google" data-i18n-default-aria-label="account.signIn">
           <svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="23" r="10"/><path d="M13 54c0-11 8-18 19-18s19 7 19 18"/></svg>
           <span id="account-photo"></span>
         </button>
         <div class="account-identity">
           <h3 class="account-name" id="account-name" hidden></h3>
-          <button class="account-action account-login" id="account-login" type="button">Login</button>
-          <button class="account-action account-signout" id="account-signout" type="button" hidden>Logout</button>
+          <button class="account-action account-login" id="account-login" type="button" data-i18n-default="account.login">Login</button>
+          <button class="account-action account-signout" id="account-signout" type="button" hidden data-i18n="account.logout">Logout</button>
         </div>
         <button class="account-action account-retry" id="account-action" type="button" hidden></button>
         <p class="account-status" id="account-status" role="status" aria-live="polite" hidden></p>
       </section>
       <section class="profile-pane" aria-labelledby="profile-title">
-        <h3 class="selector-pane-title" id="profile-title">Personal details</h3>
+        <h3 class="selector-pane-title" id="profile-title" data-i18n="mydata.profile">Personal details</h3>
         <div id="profile-fields"></div>
         <p class="nutrition-note" id="nutrition-profile-status" role="status" aria-live="polite"></p>
       </section>
       <section class="profile-pane" aria-labelledby="planning-title">
-        <h3 class="selector-pane-title" id="planning-title">Meal planning</h3>
+        <h3 class="selector-pane-title" id="planning-title" data-i18n="mydata.planning">Meal planning</h3>
         <div id="planning-fields"></div>
       </section>
     </div>
@@ -170,40 +167,40 @@
   <template id="sidebar-template-setting">
     <div class="sidebar-page" id="sidebar-page-setting" role="tabpanel" aria-labelledby="sidebar-tab-setting">
       <section class="selector-pane settings-pane">
-        <h3 class="selector-pane-title">General</h3>
+        <h3 class="selector-pane-title" data-i18n="settings.general">General</h3>
         <div id="nutrition-settings-fields"></div>
       </section>
       <section class="selector-pane settings-pane">
-        <h3 class="selector-pane-title">Appearance</h3>
+        <h3 class="selector-pane-title" data-i18n="settings.appearance">Appearance</h3>
         <div class="mensa-row photo-row" id="photo-row" role="button" tabindex="0"
              aria-pressed="false">
           <span class="mensa-check" aria-hidden="true"></span>
-          <span class="mensa-label">Show menu photos</span>
+          <span class="mensa-label" data-i18n="settings.photos">Show menu photos</span>
         </div>
         <div class="mensa-row photo-row" id="opening-row" role="button" tabindex="0"
              aria-pressed="false">
           <span class="mensa-check" aria-hidden="true"></span>
-          <span class="mensa-label">Show opening times</span>
+          <span class="mensa-label" data-i18n="settings.opening">Show opening times</span>
         </div>
         <div class="mensa-row photo-row" id="price-row" role="button" tabindex="0"
              aria-pressed="false">
           <span class="mensa-check" aria-hidden="true"></span>
-          <span class="mensa-label">Show prices</span>
+          <span class="mensa-label" data-i18n="settings.prices">Show prices</span>
         </div>
 
         <!-- Appearance: light/dark/auto — same segmented pattern as the
              Lunch/Dinner switch (CSS container-transform thumb). -->
-        <div class="segmented appearance" id="appearance-seg" aria-label="Appearance">
+        <div class="segmented appearance" id="appearance-seg" aria-label="Appearance" data-i18n-aria-label="settings.appearance">
           <span class="seg-thumb" aria-hidden="true"></span>
-          <button class="seg-option" type="button" data-theme="light" aria-pressed="false">Light</button>
-          <button class="seg-option" type="button" data-theme="dark" aria-pressed="false">Dark</button>
-          <button class="seg-option" type="button" data-theme="auto" aria-pressed="false">Auto</button>
+          <button class="seg-option" type="button" data-theme="light" aria-pressed="false" data-i18n="theme.light">Light</button>
+          <button class="seg-option" type="button" data-theme="dark" aria-pressed="false" data-i18n="theme.dark">Dark</button>
+          <button class="seg-option" type="button" data-theme="auto" aria-pressed="false" data-i18n="theme.auto">Auto</button>
         </div>
       </section>
       <section class="selector-pane settings-pane">
-        <h3 class="selector-pane-title">Language</h3>
+        <h3 class="selector-pane-title" data-i18n="settings.language">Language</h3>
         <label class="language-row" for="site-language">
-          <select id="site-language" aria-label="Display language"><option value="en">English</option></select>
+          <select id="site-language" aria-label="Display language" data-i18n-aria-label="settings.languageLabel"></select>
         </label>
       </section>
     </div>

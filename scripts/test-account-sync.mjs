@@ -109,3 +109,17 @@ assert.deepEqual(onlineProfile.writes[0].patch, {userProfile: {ageYears: 36}});
 const badProfile = device({initial: full}); badProfile.login(); badProfile.receive({...full, userProfile: {ageYears: -5}});
 assert.equal(badProfile.state.status, 'error'); assert.equal(badProfile.writes.length, 0);
 console.log('PASS: unified nutrition conflict, legacy cloud upgrade, offline profile merge and invalid cloud rejection');
+
+// The interface language is one more preference field: same choice, same single-field patches.
+const lingual = device({initial: {...defaults, language: 'de'}}); lingual.login(); lingual.receive({...defaults, language: 'ja'});
+assert.equal(lingual.state.status, 'choice');
+lingual.sync.resolveConflict('cloud');
+assert.equal(lingual.prefs.language, 'ja');
+lingual.edit({language: 'fr'}); await tick();
+assert.deepEqual(lingual.writes.at(-1).patch, {language: 'fr'});
+const legacyLanguage = device({initial: {...defaults, language: 'zh-Hant'}}); legacyLanguage.login(); legacyLanguage.receive(defaults);
+legacyLanguage.sync.resolveConflict('local'); await tick();
+assert.deepEqual(legacyLanguage.writes[0].patch, {language: 'zh-Hant'}, 'documents from before the setting gain it');
+const badLanguage = device(); badLanguage.login(); badLanguage.receive({...defaults, language: 'xx'});
+assert.equal(badLanguage.state.status, 'error'); assert.equal(badLanguage.writes.length, 0);
+console.log('PASS: language syncs through the shared choice, legacy documents upgrade, unknown codes are rejected');

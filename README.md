@@ -40,6 +40,7 @@ See [Firebase setup and sync behavior](docs/firebase-setup.md).
 - [CONTRACT.md](CONTRACT.md) — `data.json` schema, DOM class contract, and the animation contract
 - [AGENTS.md](AGENTS.md) — mandatory rules for any agent/human editing this repo (animation architecture, prohibitions, workflow)
 - `scripts/verify-anim-contract.py` — machine-checkable animation contract; run after any frontend change
+- `scripts/verify-i18n-contract.py` — translation contract for the interface languages; run after any text change
 - `scripts/verify-menu-data.py` — deployment guard for the generated menu data
 
 ## Data sources
@@ -103,6 +104,7 @@ docs/firebase-setup.md      Firebase configuration and account behavior
 zmittag-nutrition-core/     Independent calculation module; not wired into the site
 scripts/
   verify-anim-contract.py   Machine-checkable animation contract; run after frontend changes
+  verify-i18n-contract.py   Complete, current translations; no hard-coded or translated menu text
   verify-menu-data.py       Blocks malformed or unexpectedly empty weekday data
 .github/workflows/
   menu.yml                  Daily cron + manual dispatch, builds and deploys a Pages artifact
@@ -139,10 +141,12 @@ python3 scripts/test-hardening.py
 node scripts/test-date.cjs
 node scripts/test-settings.cjs
 node scripts/test-account-sync.mjs
+node scripts/test-i18n.mjs
 node --check template/app.js
 node --check template/account-sync.mjs
 python3 -m py_compile menu.py menu_data.py sv_menu.py
 python3 scripts/verify-anim-contract.py
+python3 scripts/verify-i18n-contract.py
 ```
 
 Real browser regressions also use offline fixtures, with a fixed Zurich clock:
@@ -194,8 +198,25 @@ Personal nutrition is available in **My Data**, below the Google account.
 Profiles save locally and share the existing account synchronization and
 local/cloud choice with mensa selections, groups and settings. **Setting** has
 General (13 nutrition standards and calculation choices), Appearance, and
-Language (English). The default is Swiss BLV with an editable 40% lunch / 30%
+Language. The default is Swiss BLV with an editable 40% lunch / 30%
 dinner planning split. Some standards require additional profile or plan inputs.
+
+## Interface languages
+
+The interface and all nutrition text are available in Chinese (Simplified
+and Traditional), Danish, English, French, German, Italian, Japanese, Latin
+and Swiss German. Menus keep the language the mensas publish them in. Text
+lives in one catalog per language (`template/i18n/<code>.json`, English is
+the source). When English text changes in a release, translate the reported
+keys in every catalog (an AI pass is fine) and lock the new source:
+
+```sh
+python3 scripts/verify-i18n-contract.py               # lists missing/stale keys
+python3 scripts/verify-i18n-contract.py --update-lock # once every language is done
+```
+
+The check also rejects missing or extra keys, changed placeholders, numbers
+or abbreviations, hard-coded UI strings and translated menu data.
 
 Dish coverage compares only supplied/calculated serving **Total** values with
 the active meal's applicable reference. Bars show `current / reference` amounts
