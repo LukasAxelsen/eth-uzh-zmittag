@@ -554,6 +554,7 @@ function renderLanguageSelect() {
   reconcileChildren(select, i18nCore.LANGUAGE_CODES, (code) => {
     const option = document.createElement('option');
     option.value = code;
+    option.lang = code; // the native name's Han glyphs follow its own standard in any interface language
     option.textContent = i18nCore.languageLabel(i18nCore.LANGUAGES.find((language) => language.code === code));
     return option;
   }, false, false);

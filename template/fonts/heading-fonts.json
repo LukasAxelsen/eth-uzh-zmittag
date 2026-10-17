@@ -1,0 +1,32 @@
+{
+ "repository": "google/fonts",
+ "commit": "47d54ca1ebb14fd864695f1d39dc734f39017c33",
+ "license": "OFL-1.1 (OFL.txt)",
+ "weight": 600,
+ "fonts": {
+  "zh-Hans": {
+   "family": "Zmittag Heading SC",
+   "file": "heading-sc.woff2",
+   "source": "ofl/notoserifsc/NotoSerifSC[wght].ttf",
+   "sourceSha256": "050080d9255a86808f2945bffac582b31ef32bc36411ce29563b4961670c66f9",
+   "sha256": "a1208f153f99dc98042ff0c0c55d14b44e9eca847dd93977f86c0b80986682e9",
+   "characters": " 0123456789一三二五六四日星月期"
+  },
+  "zh-Hant": {
+   "family": "Zmittag Heading TC",
+   "file": "heading-tc.woff2",
+   "source": "ofl/notoseriftc/NotoSerifTC[wght].ttf",
+   "sourceSha256": "0077e18f57c6908f4a000969880940bdb0dad057c0e8d98b49dc364c3d1b09c6",
+   "sha256": "ad6762f05837f9dd15b5366885410c21dc4f31dddf223bbbde6090bc728f3704",
+   "characters": " 0123456789一三二五六四日星月期"
+  },
+  "ja": {
+   "family": "Zmittag Heading JP",
+   "file": "heading-jp.woff2",
+   "source": "ofl/notoserifjp/NotoSerifJP[wght].ttf",
+   "sourceSha256": "2fd527ba12b6a44ec30d796d633360da0aeba6c5d4af1304ce12bb4dc15a7dfc",
+   "sha256": "74d9fbe1115da6ed4887c476e5174ec0f767a3c01056a5f259cb9af545226dcb",
+   "characters": "0123456789土日曜月木水火金（）"
+  }
+ }
+}

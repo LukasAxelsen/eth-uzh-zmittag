@@ -1295,9 +1295,9 @@ def publish_site(payload, *, allow_empty_today=False):
                 .replace("VER_PLACEHOLDER", rev))
     files['index.html'] = html
 
-    with open(os.path.join(TEMPLATE_DIR, "style.css")) as f:
+    with open(os.path.join(TEMPLATE_DIR, "style.css"), encoding='utf-8') as f:
         css = f.read()
-    files['style.css'] = css
+    files['style.css'] = css.replace("VER_PLACEHOLDER", rev)  # versioned font URLs
 
     with open(os.path.join(TEMPLATE_DIR, "app.js")) as f:
         files['app.js'] = f.read().replace("DATE_PLACEHOLDER", today).replace("VER_PLACEHOLDER", rev)
@@ -1309,6 +1309,11 @@ def publish_site(payload, *, allow_empty_today=False):
         if name.endswith('.json') and name != 'source.lock.json':
             with open(os.path.join(TEMPLATE_DIR, 'i18n', name), encoding='utf-8') as f:
                 files['i18n/' + name] = f.read()
+    # Self-hosted CJK heading subsets (scripts/build-heading-fonts.py) and their licence.
+    for name in sorted(os.listdir(os.path.join(TEMPLATE_DIR, 'fonts'))):
+        if name.endswith(('.woff2', '.txt')):
+            with open(os.path.join(TEMPLATE_DIR, 'fonts', name), 'rb') as f:
+                files['fonts/' + name] = f.read()
     for name in ('core.mjs', 'reference-data.mjs', 'hall.mjs'):
         with open(os.path.join(BASE, 'zmittag-nutrition-core', name)) as f:
             files['nutrition-core/' + name] = f.read()
@@ -1322,7 +1327,8 @@ def publish_site(payload, *, allow_empty_today=False):
     with tempfile.TemporaryDirectory(prefix='.menu-build-', dir=parent) as staging:
         for name, contents in files.items():
             os.makedirs(os.path.dirname(os.path.join(staging, name)), exist_ok=True)
-            with open(os.path.join(staging, name), 'w', encoding='utf-8') as f:
+            mode = ('wb', None) if isinstance(contents, bytes) else ('w', 'utf-8')
+            with open(os.path.join(staging, name), mode[0], encoding=mode[1]) as f:
                 f.write(contents)
         os.makedirs(OUTPUT_DIR, exist_ok=True)
         # data.json is switched last; each replacement is atomic on this FS.

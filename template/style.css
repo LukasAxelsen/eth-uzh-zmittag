@@ -20,6 +20,11 @@
   --dialog-backdrop: rgb(0 0 0 / 30%);
   --font: -apple-system, BlinkMacSystemFont, "SF Pro Text",
           "Helvetica Neue", Helvetica, Arial, sans-serif;
+  /* Apple's poster serif: `ui-serif` maps to New York on Apple devices
+     (macOS/iOS — the actual system serif); other platforms fall back
+     through Georgia (universal serif) to the platform default serif. */
+  --font-serif: ui-serif, "New York", Georgia, "Times New Roman", serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
   --content-w: 980px;
   --ease: cubic-bezier(.32, .72, 0, 1);
   /* Symmetric ease for HEIGHT GROW/SHRINK (disclosures AND content
@@ -48,6 +53,64 @@
   --r-lg: 16px;
   --r-pill: 999px;
   --r-circle: 50%;
+}
+
+/* Han glyph forms follow the language: Simplified = GB, Traditional =
+   Taiwan, Japanese = JIS. The same code point (直, 骨, 写 …) is drawn
+   differently per standard, so each language names only its own fonts:
+   Apple (PingFang / Hiragino), Windows (YaHei / JhengHei / Meiryo), Linux
+   (Noto / Source Han); Android has no named fonts and picks the matching
+   Noto CJK face from `lang`. The Latin fonts first contain no Han glyphs,
+   so Latin text keeps SF while every Han character falls through to the
+   region's font. No `system-ui`: on CJK Windows it is the UI font of the
+   system's own region. Options carry their own lang (language picker).
+   The heading serif is a self-hosted Noto Serif subset (fonts/, built by
+   scripts/build-heading-fonts.py) — identical on every platform. */
+:lang(zh-Hans) {
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial,
+          "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC",
+          "Noto Sans SC", sans-serif;
+  --font-serif: "Zmittag Heading SC", "Songti SC", "Noto Serif CJK SC", "Source Han Serif SC",
+                "Noto Serif SC", SimSun, serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas,
+               "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", monospace;
+}
+:lang(zh-Hant) {
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial,
+          "PingFang TC", "Microsoft JhengHei", "Noto Sans CJK TC", "Source Han Sans TC",
+          "Noto Sans TC", sans-serif;
+  --font-serif: "Zmittag Heading TC", "Songti TC", "Noto Serif CJK TC", "Source Han Serif TC",
+                "Noto Serif TC", PMingLiU, serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas,
+               "PingFang TC", "Microsoft JhengHei", "Noto Sans CJK TC", monospace;
+}
+:lang(ja) {
+  --font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", Helvetica, Arial,
+          "Hiragino Sans", "Hiragino Kaku Gothic ProN", Meiryo, "Yu Gothic", YuGothic,
+          "Noto Sans CJK JP", "Source Han Sans JP", "Noto Sans JP", sans-serif;
+  --font-serif: "Zmittag Heading JP", "Hiragino Mincho ProN", "Yu Mincho", YuMincho,
+                "Noto Serif CJK JP", "Source Han Serif JP", "Noto Serif JP", serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas,
+               "Hiragino Sans", Meiryo, "Noto Sans CJK JP", monospace;
+}
+option[lang] { font-family: var(--font); }
+@font-face {
+  font-family: "Zmittag Heading SC";
+  src: url("fonts/heading-sc.woff2?v=VER_PLACEHOLDER") format("woff2");
+  font-weight: 600;
+  font-display: block;
+}
+@font-face {
+  font-family: "Zmittag Heading TC";
+  src: url("fonts/heading-tc.woff2?v=VER_PLACEHOLDER") format("woff2");
+  font-weight: 600;
+  font-display: block;
+}
+@font-face {
+  font-family: "Zmittag Heading JP";
+  src: url("fonts/heading-jp.woff2?v=VER_PLACEHOLDER") format("woff2");
+  font-weight: 600;
+  font-display: block;
 }
 
 /* Apple's continuous-curvature corners (squircle), progressive
@@ -132,19 +195,17 @@ input:focus-visible { outline: none; }
 .header { padding: 56px 24px 40px; text-align: center; }
 
 #date-heading {
-  /* Apple's poster serif: `ui-serif` maps to New York on Apple devices
-     (macOS/iOS — the actual system serif); other platforms fall back
-     through Georgia (universal serif) to the platform default serif.
-     New York renders its Display variant at this size automatically. */
-  font-family: ui-serif, "New York", Georgia, "Times New Roman", serif;
+  /* New York renders its Display variant at this size automatically. */
+  font-family: var(--font-serif);
   font-size: clamp(32px, 6vw, 56px);
   font-weight: 600;
   letter-spacing: -0.01em;
   line-height: 1.1;
 }
 /* Chinese/Japanese may break between any two characters; keep the date and
-   the weekday whole so a narrow heading wraps only between them. */
-:lang(zh) #date-heading, :lang(ja) #date-heading { word-break: keep-all; }
+   the weekday whole so a narrow heading wraps only between them. Han text
+   is set solid: negative tracking crowds square glyphs. */
+:lang(zh) #date-heading, :lang(ja) #date-heading { word-break: keep-all; letter-spacing: 0; }
 
 /* Date heading doubles as the calendar trigger. Hover/press reveal a
    slim rounded outline (affordance: "this opens something"), matching
@@ -1184,7 +1245,7 @@ html .mensa-section.no-meal-slot .hours-line-wrap { max-height: 16px; }
 #raw-text {
   max-height: 400px;
   overflow-y: auto;
-  font-family: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   line-height: 1.6;
   color: var(--body);
