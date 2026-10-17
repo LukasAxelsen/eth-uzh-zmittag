@@ -58,6 +58,10 @@ the repository.
   document resets the profile to empty and nutrition settings to their defaults;
   it does not silently keep a conflicting local profile. Deploy the updated
   rules before publishing this frontend. This change has no separate database.
+- The interface language is the optional `language` field (one of the codes
+  in `template/i18n.mjs`; the rules list the same codes). Documents without
+  it keep the device's language. Deploy the updated rules before publishing
+  the language picker, or every write that carries `language` is rejected.
 
 ## Verification
 
@@ -66,6 +70,7 @@ node scripts/test-account-sync.mjs
 node scripts/test-nutrition.mjs
 npm run test:browser
 python3 scripts/verify-anim-contract.py
+python3 scripts/verify-i18n-contract.py
 ```
 
 The browser fixtures explicitly disable production Firebase. The state-machine

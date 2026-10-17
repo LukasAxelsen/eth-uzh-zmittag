@@ -144,7 +144,8 @@ header .header
     #opening-row (.mensa-row .photo-row style; label "Show opening times")
     #price-row (.mensa-row .photo-row style; label "Show prices")
     #appearance-seg (light/dark/auto segmented switch)
-    LANGUAGE: English only
+    LANGUAGE: #site-language (10 languages, sorted by English name,
+      "English name · native name"; options keyed by language code)
 #sidebar-dialog (one native modal for reset, cloud choice and connection errors)
   #sidebar-dialog-content (keyed prompt; focus containment, Escape, return focus)
 main#content
@@ -203,7 +204,7 @@ Every content change runs through the ONE pipeline:
 
 ## localStorage key: "eth-uzh-nutrition-prefs"
 ```json
-{"meal":"Lunch","selected":["eth-9","uzh-obere-mensa",...],"photos":true,"openingTimes":true,"prices":true,"theme":"light","customGroups":{"My Group":["eth-3",...]},"hiddenGroups":[],"collapsedMensas":[],"userProfile":{},"nutritionSettings":{"standard":"ch_blv","energyMethod":"standard","lunchPercent":40,"dinnerPercent":30,"proteinMealStrategy":"proportional","s3MacroPolicy":"individualized"}}
+{"meal":"Lunch","selected":["eth-9","uzh-obere-mensa",...],"photos":true,"openingTimes":true,"prices":true,"theme":"light","language":"en","customGroups":{"My Group":["eth-3",...]},"hiddenGroups":[],"collapsedMensas":[],"userProfile":{},"nutritionSettings":{"standard":"ch_blv","energyMethod":"standard","lunchPercent":40,"dinnerPercent":30,"proteinMealStrategy":"proportional","s3MacroPolicy":"individualized"}}
 ```
 - photos: bool, DEFAULT true (photos on — product owner); openingTimes/prices:
   bool, DEFAULT true, persisted through the same loadPrefs/savePrefs path.
@@ -214,6 +215,31 @@ Every content change runs through the ONE pipeline:
   confused users into thinking Light was broken/grey).
 - The calendar date (selectedDate) is intentionally NOT persisted — the
   site is a "today" product.
+- language: one of the codes in template/i18n.mjs. Without a stored value
+  the first visit follows the browser's language list (de-CH → German,
+  zh-TW/HK → Traditional Chinese), falling back to English. Cloud documents
+  from before the setting keep the device's language.
+
+## Interface languages
+
+- Catalogs: template/i18n/<code>.json, flat `key → text` (or list for
+  weekday/month names); en.json is the source and the key order every
+  other catalog follows. menu.py publishes them to output/i18n/; the page
+  loads only the chosen catalog alongside data.json.
+- Translated: interface, calendar, nutrition labels, standards' names and
+  explanations, field hints and errors, coverage meter descriptions.
+  Untranslated: everything from data.json and closures.json, group names,
+  price labels, the raw/AI text and language names in the picker.
+- Markup: `data-i18n` (text) and `data-i18n-aria-label|title` are applied
+  by updateStaticText() in renderAll; `data-i18n-default[-attr]` marks text
+  a render function owns. The English text in index.html is the pre-JS
+  first paint and equals en.json.
+- Switching language changes prefs.language and calls renderAll. Dish,
+  meter, field and chip nodes are reused and relabelled in place; keys
+  never include the language. <html lang> follows the shown catalog.
+- scripts/verify-i18n-contract.py checks completeness, shape, placeholders,
+  numbers, abbreviations, HTML/JS usage, sync rules and the English source
+  lock (template/i18n/source.lock.json).
 
 ## Sidebar and account preferences
 
