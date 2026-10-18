@@ -1409,7 +1409,7 @@ function renderStandardNote(standard) {
 }
 
 function updateDishCoverage(node, dish) {
-  if (!nutritionCore) return;
+  if (!nutritionCore || !node.querySelector('.nutrition-table')) return;
   const key = nutritionCache.key + '|' + prefs.meal + '|' + activeLanguage();
   if (dishCoverageCache.get(node) === key) return;
   const targets = nutritionCache[prefs.meal.toLowerCase()];
@@ -1482,8 +1482,24 @@ function dishHTML(d, key) {
     '<h3 class="dish-name">' + esc(dish) + (label ? '' : price) + '</h3>' +
     (d.desc ? '<p class="dish-desc">' + esc(d.desc) + '</p>' : '') +
     '</div>' +
-    '<div class="nutrition-col">' + nutritionTableHTML(nutrition) + '</div>' +
+    (nutritionShown(nutrition)
+      ? '<div class="nutrition-col">' + nutritionTableHTML(nutrition) + '</div>'
+      : '') +
     '</div>';
+}
+
+/** The table stays out when nothing was published, or every number is 0
+    (buffet placeholders). A real zero beside a measured value still shows. */
+function nutritionShown(nutrition) {
+  const bases = [(nutrition || {}).p100, (nutrition || {}).total];
+  for (const row of NUTRITION_ROWS) {
+    for (const basis of bases) {
+      const v = basis && basis[row.key];
+      if (v == null || v === '' || !Number.isFinite(Number(v))) continue;
+      if (Number(v) !== 0) return true;
+    }
+  }
+  return false;
 }
 
 /** Price suffix: "STUD 7.90 | INT 10.90 | EXT 13.90" — grey, small,

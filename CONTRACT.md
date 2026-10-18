@@ -40,6 +40,8 @@
 - nutrition keys (fixed set): kcal, protein, fat, saturated, carbs, sugar, salt, fiber, weight
 - Values are NUMBERS (no units). kcal unit=kcal, all others = g. weight only in total.
 - p100 = per-100g values; total = per-serving values. Empty object {} means no data.
+  The dish nutrition table is omitted when neither basis has a number, or
+  every number is 0. A real zero next to a measured value still renders.
 - Missing total nutrients are calculated from unrounded per-100g values only
   when a positive source-supplied serving weight is known (`p100 × g / 100`).
   Supplied totals, including real zeros, are never overwritten by calculation.
@@ -155,7 +157,8 @@ main#content
       .dish-main (.dish-label, .dish-name, .dish-desc)
       img.dish-photo (optional; HEIGHT transition 0->natural px on open,
         natural->0 + remove on close — NEVER opacity/fade)
-      .nutrition-col > table.nutrition-table (thead Nutrition|per 100g|Total;
+      .nutrition-col > table.nutrition-table (omitted when nutrition is absent
+        or every number is 0; otherwise thead Nutrition|per 100g|Total;
         9 nutrient value rows, each followed by a coverage holder row)
         .nutrient-progress > .nutrient-coverage[data-key=coverage]
           .coverage-amount (serving total / reference amount or range, g or kcal)
