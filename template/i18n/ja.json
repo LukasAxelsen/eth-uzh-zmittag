@@ -238,5 +238,13 @@
   "kind.meal_dose": "食事ごとの量",
   "kind.minimum": "最小量",
   "kind.reference_range": "参照範囲",
-  "kind.reference": "参照量"
+  "kind.reference": "参照量",
+  "settings.recommendations": "おすすめメニューを表示",
+  "recommendations.title": "おすすめメニュー",
+  "recommendations.needsTargets": "比較できる栄養目標がありません。「マイデータ」と栄養設定を確認してください。",
+  "recommendations.noData": "現在の選択には、比較できる一食分の栄養データがある料理がありません。",
+  "recommendations.method": "この食事の栄養目標に基づき、一食分のデータが充実している料理を優先し、全体のずれが小さい順に表示します。",
+  "recommendations.match": "達成した目標：{met} / {total}",
+  "recommendations.missing": "不足している栄養データ：{count} 項目",
+  "recommendations.open": "候補 {rank}：{mensa} の {dish}。料理の詳細へ移動。"
 }

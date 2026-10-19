@@ -238,5 +238,13 @@
  "kind.meal_dose": "3aa52b75159ac742",
  "kind.minimum": "92fd6b768c6ffafa",
  "kind.reference_range": "cc1aa28f41103d3c",
- "kind.reference": "86a3d4125c91d462"
+ "kind.reference": "86a3d4125c91d462",
+ "settings.recommendations": "7e4284c617dd8753",
+ "recommendations.title": "ff36dac3d9fb8409",
+ "recommendations.needsTargets": "335e28ef3692b03b",
+ "recommendations.noData": "35bf43fbaa75669d",
+ "recommendations.method": "84829792411b66b7",
+ "recommendations.match": "fd0737e28a059f33",
+ "recommendations.missing": "cba029840391dbca",
+ "recommendations.open": "c49dbc28b51d0494"
 }

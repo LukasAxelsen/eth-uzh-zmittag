@@ -238,5 +238,13 @@
   "kind.meal_dose": "dose par repas",
   "kind.minimum": "minimum",
   "kind.reference_range": "plage de référence",
-  "kind.reference": "référence"
+  "kind.reference": "référence",
+  "settings.recommendations": "Afficher les menus recommandés",
+  "recommendations.title": "Menus recommandés",
+  "recommendations.needsTargets": "Aucun objectif comparable. Vérifiez Mes données et vos réglages nutritionnels.",
+  "recommendations.noData": "Aucun plat de la sélection actuelle ne dispose de données nutritionnelles par portion comparables.",
+  "recommendations.method": "Selon vos objectifs pour ce repas : données par portion les plus complètes, puis écart global le plus faible.",
+  "recommendations.match": "{met} / {total} objectifs atteints",
+  "recommendations.missing": "Nutriments manquants : {count}",
+  "recommendations.open": "Choix {rank} : {dish} à {mensa}. Aller au plat."
 }

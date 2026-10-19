@@ -486,6 +486,18 @@ check("settings have General, Appearance and Language sections",
       all('>' + title + '</h3>' in HTML for title in ['General', 'Appearance', 'Language']) and
       '>Setting</h3>' not in HTML)
 
+print("== D5. recommendations share rendering and display preferences ==")
+check("recommendation containers register with FLIP",
+      "getElementById('recommendations')" in fc and "querySelectorAll('.recommendation-slot')" in fc)
+check("recommendations render before the shared photo pass",
+      "renderRecommendations();" in ra and ra.index("renderRecommendations();") < ra.index("applyPhotos();"))
+check("recommendation toggle follows the state pipeline",
+      "function onRecommendationsToggleClick" in JS and
+      "renderAll();" in section("function onRecommendationsToggleClick", ["/* ---------- appearance"]))
+check("recommendations sit above content and settings above Appearance",
+      'id="recommendations"' in HTML and HTML.index('id="recommendations"') < HTML.index('<main id="content"') and
+      'id="recommendations-row"' in HTML and HTML.index('id="recommendations-row"') < HTML.index('data-i18n="settings.appearance"'))
+
 print("== E. syntax ==")
 r = subprocess.run(["node", "--check", str(ROOT / "template" / "app.js")],
                    capture_output=True, text=True)

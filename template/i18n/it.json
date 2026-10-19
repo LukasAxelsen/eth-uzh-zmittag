@@ -238,5 +238,13 @@
   "kind.meal_dose": "dose per pasto",
   "kind.minimum": "minimo",
   "kind.reference_range": "intervallo di riferimento",
-  "kind.reference": "riferimento"
+  "kind.reference": "riferimento",
+  "settings.recommendations": "Mostra i menu consigliati",
+  "recommendations.title": "Menu consigliati",
+  "recommendations.needsTargets": "Nessun obiettivo confrontabile. Controlla I miei dati e le impostazioni nutrizionali.",
+  "recommendations.noData": "Nessun piatto nella selezione attuale dispone di valori nutrizionali per porzione confrontabili.",
+  "recommendations.method": "In base agli obiettivi del pasto: prima i dati per porzione più completi, poi lo scostamento complessivo minore.",
+  "recommendations.match": "{met} / {total} obiettivi raggiunti",
+  "recommendations.missing": "Nutrienti mancanti: {count}",
+  "recommendations.open": "Scelta {rank}: {dish} presso {mensa}. Vai al piatto."
 }

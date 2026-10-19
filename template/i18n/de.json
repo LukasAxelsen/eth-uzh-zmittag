@@ -238,5 +238,13 @@
   "kind.meal_dose": "Dosis pro Mahlzeit",
   "kind.minimum": "Minimum",
   "kind.reference_range": "Referenzbereich",
-  "kind.reference": "Referenzwert"
+  "kind.reference": "Referenzwert",
+  "settings.recommendations": "Empfohlene Menüs anzeigen",
+  "recommendations.title": "Empfohlene Menüs",
+  "recommendations.needsTargets": "Keine vergleichbaren Ziele. Prüfe Meine Daten und deine Ernährungseinstellungen.",
+  "recommendations.noData": "Keine Gerichte in der aktuellen Auswahl haben vergleichbare Nährwerte pro Portion.",
+  "recommendations.method": "Nach deinen Mahlzeitenzielen: zuerst möglichst vollständige Portionsdaten, dann die geringste Gesamtabweichung.",
+  "recommendations.match": "{met} / {total} Ziele erreicht",
+  "recommendations.missing": "Fehlende Nährwerte: {count}",
+  "recommendations.open": "Auswahl {rank}: {dish} bei {mensa}. Zum Gericht springen."
 }

@@ -90,6 +90,7 @@ let prefs = {
   photos: true,   // photos ON by default (product owner)
   openingTimes: true,
   prices: true,
+  recommendations: true,
   theme: 'light',
   language: 'en',
   customGroups: {},
@@ -117,6 +118,9 @@ let nutritionCore = null;
 let nutritionCache = {key: '', result: null, lunch: {}, dinner: {}, error: ''};
 const nutritionDrafts = new Map();
 let nutritionErrors = new Map();
+let recommendedMeals = []; // derived from state once per render; also resolves click identities
+let pendingDishNavigation = null;
+let navigationRevision = 0;
 const dishCoverageCache = new WeakMap(); // DOM work cache; never a source of render state
 const dishTextCache = new WeakMap(); // DOM work cache: language of a reused dish's fixed labels
 let i18nCore = null;
@@ -140,13 +144,14 @@ function loadPrefs() {
 
 /** One schema for local storage and authenticated cloud preferences. */
 function sanitizePrefs(value) {
-  const p = { meal: 'Lunch', selected: new Set(), photos: true, openingTimes: true, prices: true, theme: 'light', customGroups: Object.create(null), hiddenGroups: new Set(), collapsedMensas: new Set() };
+  const p = { meal: 'Lunch', selected: new Set(), photos: true, openingTimes: true, prices: true, recommendations: true, theme: 'light', customGroups: Object.create(null), hiddenGroups: new Set(), collapsedMensas: new Set() };
   const parsed = value && typeof value === 'object' ? value : {};
   if (parsed.meal === 'Lunch' || parsed.meal === 'Dinner') p.meal = parsed.meal;
   if (Array.isArray(parsed.selected)) p.selected = new Set(parsed.selected.map(String));
   if (typeof parsed.photos === 'boolean') p.photos = parsed.photos;
   if (typeof parsed.openingTimes === 'boolean') p.openingTimes = parsed.openingTimes;
   if (typeof parsed.prices === 'boolean') p.prices = parsed.prices;
+  if (typeof parsed.recommendations === 'boolean') p.recommendations = parsed.recommendations;
   if (parsed.theme === 'light' || parsed.theme === 'dark' || parsed.theme === 'auto') p.theme = parsed.theme;
   // No stored language yet: follow the browser's languages (first visit only).
   if (i18nCore) {
@@ -169,6 +174,7 @@ function serializePrefs() {
   return {
     meal: prefs.meal, selected: Array.from(prefs.selected),
     photos: prefs.photos, openingTimes: prefs.openingTimes, prices: prefs.prices,
+    recommendations: prefs.recommendations,
     theme: prefs.theme, language: prefs.language, customGroups: JSON.parse(JSON.stringify(prefs.customGroups)),
     hiddenGroups: Array.from(prefs.hiddenGroups),
     collapsedMensas: Array.from(prefs.collapsedMensas),
@@ -444,6 +450,8 @@ async function loadCatalog(code) {
  * and never re-render.
  */
 const FLIP_CONTAINERS = () => [
+  document.getElementById('recommendations'),
+  ...document.querySelectorAll('.recommendation-slot'),
   document.getElementById('content'),
   document.querySelector('.selector-mensas'),
   document.querySelector('.group-rows'),
@@ -498,12 +506,14 @@ function renderAll() {
   updatePhotoToggle();
   updateOpeningToggle();
   updatePriceToggle();
+  updateRecommendationsToggle();
   updateAppearance();
   renderSelector();
   const oldH = content.getBoundingClientRect().height;
   renderContent();
   updateCollapsedSections();
   updateHoursLines(); // sections survive meal switches — refresh the text
+  renderRecommendations();
   applyPhotos(); // idempotent <img> sync — BEFORE the height measurement:
                 // fresh dishes insert photos at natural height so newH
                 // includes them (a glide to a photo-less height would
@@ -530,6 +540,7 @@ function renderAll() {
   updateRawControls();
   renderSidebarDialog();
   for (const [c, first] of snapshots) flipPlay(c, first);
+  finishDishNavigation();
 }
 
 /** The heading and tab title always describe the selected day's dataset. */
@@ -984,6 +995,19 @@ function updatePriceToggle() {
 
 function onPriceToggleClick() {
   prefs.prices = !prefs.prices;
+  savePrefs();
+  renderAll();
+}
+
+function updateRecommendationsToggle() {
+  const row = document.getElementById('recommendations-row');
+  if (!row) return;
+  row.classList.toggle('selected', prefs.recommendations);
+  row.setAttribute('aria-pressed', String(prefs.recommendations));
+}
+
+function onRecommendationsToggleClick() {
+  prefs.recommendations = !prefs.recommendations;
   savePrefs();
   renderAll();
 }
@@ -1460,7 +1484,7 @@ function updateDishText(node) {
 
 /* ---------- content: mensa sections ---------- */
 
-function dishHTML(d, key) {
+function dishHTML(d, key, anchor) {
   const nutrition = d.nutrition || { p100: {}, total: {} };
   // The label is dropped when it duplicates the dish name (Rice Up!
   // publishes "Rice Up! Bowl" as both line and dish).
@@ -1468,13 +1492,10 @@ function dishHTML(d, key) {
   const dish = String(d.dish || '').trim();
   const label = line && line.toLowerCase() !== dish.toLowerCase() ? line : '';
   const keyAttr = key ? ' data-key="' + esc(key) + '"' : '';
-  // The photo URL rides as data-photo: the <img> itself is inserted and
-  // removed by applyPhotos() WITHOUT rebuilding the dish node, so toggling
-  // photos never re-renders the dish text/nutrition (no flash). The dish
-  // key deliberately excludes the photo bit for the same reason.
-  const photo = d.photo ? ' data-photo="' + esc(d.photo) + '"' : '';
+  // Photos are resolved from state by applyPhotos(), inside reused nodes.
+  const anchorAttr = anchor ? ' id="' + esc(anchor) + '" tabindex="-1"' : '';
   const price = priceHTML(d);
-  return '<div class="dish"' + keyAttr + photo + '>' +
+  return '<div class="dish"' + keyAttr + anchorAttr + '>' +
     '<div class="dish-main">' +
     (label
       ? '<div class="dish-label">' + esc(label) + price + '</div>'
@@ -1562,7 +1583,7 @@ function mensaSectionHTML(m) {
   // contract verifier (which only greps stylesheet text).
   const body = '<div class="mensa-dishes">' +
     (dishes.length
-      ? dishes.map((d, i) => dishHTML(d, dishKey(m, d, i))).join('')
+      ? dishes.map((d, i) => dishHTML(d, dishKey(m, d, i), dishAnchor(m, i))).join('')
       : '<div class="no-meals">' + esc(t('content.noMeals')) + '</div>') +
     '</div>';
 
@@ -1633,6 +1654,10 @@ function dishKey(m, d, i) {
   return selectedDate + '|' + prefs.meal + '|' + (d.line || '') + '|' + (d.dish || '') + '|' + i;
 }
 
+function dishAnchor(m, index) {
+  return 'dish-' + selectedDate + '-' + prefs.meal.toLowerCase() + '-' + m.id + '-' + index;
+}
+
 /** Keyed empty state; its text follows the language on reuse. */
 function renderNoMeals(container) {
   reconcileChildren(container, ['__empty__'], () => {
@@ -1688,6 +1713,8 @@ function renderContent() {
     dishes.forEach((dish, index) => {
       const node = dishNodes.get(dishKey(m, dish, index));
       if (!node) return;
+      node.id = dishAnchor(m, index);
+      node.tabIndex = -1;
       updateDishText(node);
       updateDishCoverage(node, dish);
     });
@@ -1700,6 +1727,77 @@ function renderContent() {
     // dishes via the nested-enter guard. Fresh sections still grow as
     // one unit.
   }
+}
+
+/* ---------- recommendations: derived ranking and keyed rendering ---------- */
+
+function renderRecommendations() {
+  const container = document.getElementById('recommendations');
+  const targets = nutritionCache[prefs.meal.toLowerCase()];
+  const candidates = activeMensas().filter(m => prefs.selected.has(m.id)).flatMap(m =>
+    (m.meals[prefs.meal] || []).map((dish, index) => ({mensa: m, dish, index,
+      key: m.id + '|' + dishKey(m, dish, index), anchor: dishAnchor(m, index)})));
+  recommendedMeals = prefs.recommendations && nutritionCore ? nutritionCore.rankMeals(candidates, targets) : [];
+  reconcileChildren(container, prefs.recommendations ? ['recommendations'] : [], () => {
+    const panel = document.createElement('section');
+    panel.className = 'recommendations-panel';
+    panel.setAttribute('aria-labelledby', 'recommendations-title');
+    panel.innerHTML = '<h2 id="recommendations-title"></h2><p class="recommendations-note"></p>' +
+      '<div class="recommendation-list"><div class="recommendation-slot"></div>' +
+      '<div class="recommendation-slot"></div><div class="recommendation-slot"></div></div>';
+    return panel;
+  });
+  if (!prefs.recommendations) return;
+  const panel = container.querySelector('[data-key="recommendations"]');
+  setText(panel.querySelector('h2'), t('recommendations.title'));
+  setText(panel.querySelector('.recommendations-note'), !Object.keys(targets).length
+    ? t('recommendations.needsTargets') : !recommendedMeals.length
+      ? t('recommendations.noData') : t('recommendations.method'));
+  // Three stable rank slots: each replacement shrinks/grows in its own column
+  // via the existing pipeline. No sideways exit hack or per-feature animation.
+  panel.querySelectorAll('.recommendation-slot').forEach((slot, rank) => {
+    const item = recommendedMeals[rank];
+    reconcileChildren(slot, item ? [item.key] : [], () => {
+      const card = document.createElement('a');
+      card.className = 'recommendation-card';
+      card.href = '#' + item.anchor;
+      card.dataset.fresh = '1';
+      card.innerHTML = '<div class="recommendation-meta"><span class="recommendation-rank">' +
+        String(rank + 1).padStart(2, '0') + '</span><span>' + esc(item.mensa.name) + '</span>' +
+        '<span class="recommendation-arrow" aria-hidden="true">↓</span></div>' +
+        '<div class="dish-main"><p class="recommendation-line">' + esc(item.dish.line || '') + '</p>' +
+        '<h3 class="recommendation-name">' + esc(item.dish.dish) + '</h3>' + priceHTML(item.dish) + '</div>' +
+        '<p class="recommendation-match"></p><p class="recommendation-missing"></p>';
+      return card;
+    });
+    if (!item) return;
+    const card = Array.from(slot.children).find(node => node.dataset.key === item.key);
+    setText(card.querySelector('.recommendation-match'), t('recommendations.match', {met: item.met, total: item.compared}));
+    setText(card.querySelector('.recommendation-missing'), item.missing
+      ? t('recommendations.missing', {count: item.missing}) : '');
+    setAttr(card, 'aria-label', t('recommendations.open', {rank: rank + 1, dish: item.dish.dish, mensa: item.mensa.name}));
+    card.querySelectorAll('.price-wrap').forEach(node => setAttr(node, 'aria-hidden', String(!prefs.prices)));
+  });
+}
+
+/* Navigation is an after-render effect, not a second content animation path.
+   Wait for the shared disclosure/layout transitions before choosing the final
+   scroll destination. A newer render cancels an obsolete destination. */
+function finishDishNavigation() {
+  const revision = ++navigationRevision;
+  if (!pendingDishNavigation) return;
+  requestAnimationFrame(async () => {
+    const regions = [document.getElementById('content'), document.getElementById('recommendations')];
+    await Promise.allSettled(regions.flatMap(el => el.getAnimations({subtree: true})).map(a => a.finished));
+    if (revision !== navigationRevision || !pendingDishNavigation) return;
+    const item = pendingDishNavigation;
+    pendingDishNavigation = null;
+    if (item.date !== selectedDate || item.meal !== prefs.meal || !prefs.selected.has(item.mensa)) return;
+    const target = document.getElementById(item.anchor);
+    if (!target || target.closest('[data-exiting]')) return;
+    target.focus({preventScroll: true});
+    target.scrollIntoView({behavior: animationsAllowed() ? 'smooth' : 'instant', block: 'start'});
+  });
 }
 
 /**
@@ -1716,10 +1814,16 @@ function renderContent() {
  */
 function applyPhotos() {
   const show = prefs.photos;
-  const content = document.getElementById('content');
+  const dishes = activeMensas().filter(m => prefs.selected.has(m.id)).flatMap(m =>
+    (m.meals[prefs.meal] || []).map((dish, index) => ({dish, node: document.getElementById(dishAnchor(m, index))})));
+  for (const card of document.querySelectorAll('.recommendation-card')) {
+    const item = recommendedMeals.find(item => item.key === card.dataset.key);
+    if (item && !card.closest('[data-exiting]')) dishes.push({dish: item.dish, node: card});
+  }
 
-  for (const dishEl of content.querySelectorAll('.dish')) {
-    const url = dishEl.dataset.photo;
+  for (const {dish, node: dishEl} of dishes) {
+    if (!dishEl) continue;
+    const url = dish.photo;
     const main = dishEl.querySelector('.dish-main');
     const img = dishEl.querySelector('.dish-photo');
     // The fresh flag is ONE render's property: renderContent sets it on
@@ -1742,7 +1846,7 @@ function applyPhotos() {
       const el = document.createElement('img');
       el.className = 'dish-photo';
       el.src = url;
-      el.alt = (dishEl.querySelector('.dish-name') || {}).textContent || '';
+      el.alt = dish.dish || '';
       el.loading = 'lazy';
       // FRESH dish (wholesale swap) OR dish inside an ENTERING section
       // (checkbox add): insert at NATURAL height — the section's own
@@ -2029,6 +2133,7 @@ function bindEvents() {
   // the top-right corner while open, so it stays visible/tappable).
   document.getElementById('menu-btn').addEventListener('click', toggleSelector);
   document.querySelector('.segmented').addEventListener('click', onSegmentedClick);
+  document.getElementById('recommendations').addEventListener('click', onRecommendationClick);
 
   // Calendar popover: trigger toggle + month nav + grid selection.
   document.getElementById('date-trigger').addEventListener('click', () => toggleCalendar());
@@ -2146,7 +2251,7 @@ function onSidebarClick(e) {
   const btn = e.target.closest('[id]');
   const actions = {
     'photo-row': onPhotoToggleClick, 'opening-row': onOpeningToggleClick,
-    'price-row': onPriceToggleClick, 'group-add-btn': beginGroupInput,
+    'price-row': onPriceToggleClick, 'recommendations-row': onRecommendationsToggleClick, 'group-add-btn': beginGroupInput,
     'groups-reset': () => { sidebarDialog = { kind: 'reset' }; renderAll(); },
     'groups-undo': undoGroups, 'account-avatar': onAccountAction,
     'account-action': onAccountAction, 'account-login': onAccountAction,
@@ -2478,6 +2583,18 @@ function toggleMensa(id) {
   // idle moment keeps the animation-critical path under 16ms and
   // prevents a visible hitch (the checkbox stutter).
   savePrefs();
+}
+
+function onRecommendationClick(e) {
+  const card = e.target.closest('.recommendation-card');
+  if (!card || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+  const item = recommendedMeals.find(item => item.key === card.dataset.key);
+  if (!item) return;
+  e.preventDefault();
+  prefs.collapsedMensas.delete(item.mensa.id);
+  pendingDishNavigation = {anchor: item.anchor, mensa: item.mensa.id, date: selectedDate, meal: prefs.meal};
+  savePrefs();
+  renderAll();
 }
 
 function onGroupsClick(e) {

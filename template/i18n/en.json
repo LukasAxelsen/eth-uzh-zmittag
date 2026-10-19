@@ -238,5 +238,13 @@
   "kind.meal_dose": "meal dose",
   "kind.minimum": "minimum",
   "kind.reference_range": "reference range",
-  "kind.reference": "reference"
+  "kind.reference": "reference",
+  "settings.recommendations": "Show recommended menus",
+  "recommendations.title": "Recommended menus",
+  "recommendations.needsTargets": "No comparable targets. Check My Data and your nutrition settings.",
+  "recommendations.noData": "No meals with comparable serving nutrition in the current selection.",
+  "recommendations.method": "By your meal targets: most complete serving data first, then smallest overall deviation.",
+  "recommendations.match": "{met} / {total} targets met",
+  "recommendations.missing": "Missing nutrients: {count}",
+  "recommendations.open": "Choice {rank}: {dish} at {mensa}. Go to menu."
 }

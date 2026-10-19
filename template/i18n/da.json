@@ -238,5 +238,13 @@
   "kind.meal_dose": "dosis pr. måltid",
   "kind.minimum": "minimum",
   "kind.reference_range": "referenceinterval",
-  "kind.reference": "reference"
+  "kind.reference": "reference",
+  "settings.recommendations": "Vis anbefalede menuer",
+  "recommendations.title": "Anbefalede menuer",
+  "recommendations.needsTargets": "Ingen sammenlignelige mål. Tjek Mine data og dine ernæringsindstillinger.",
+  "recommendations.noData": "Ingen retter i det aktuelle udvalg har sammenlignelige næringsdata pr. portion.",
+  "recommendations.method": "Efter dine måltidsmål: først de mest komplette portionsdata, derefter den mindste samlede afvigelse.",
+  "recommendations.match": "{met} / {total} mål opfyldt",
+  "recommendations.missing": "Manglende næringsdata: {count}",
+  "recommendations.open": "Valg {rank}: {dish} hos {mensa}. Gå til retten."
 }

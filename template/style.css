@@ -1179,6 +1179,37 @@ html .mensa-section.no-meal-slot .hours-line-wrap { max-height: 16px; }
 [data-tone="low"] .coverage-fill { background: var(--coverage-low); }
 [data-tone="high"] .coverage-fill { background: var(--coverage-high); }
 
+/* Recommendations: flat, borderless choices, with fixed rank columns. Each
+   slot reconciles through the shared height enter/exit pipeline. */
+#recommendations { max-width: min(var(--content-w), 100%); margin: 0 auto; padding: 0 24px; }
+.recommendations-panel { padding: 8px 0 24px; }
+#recommendations-title { font-size: 20px; font-weight: 600; letter-spacing: -.01em; }
+.recommendations-note { padding-top: 8px; max-width: 680px; font-size: 13px; line-height: 1.5; color: var(--sub); }
+.recommendation-list { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 28px; }
+.recommendation-slot { min-width: 0; }
+.recommendation-card { display: block; padding: 24px 0 4px; color: var(--text); text-decoration: none; }
+.recommendation-meta { display: flex; align-items: baseline; gap: 8px; font-size: 11px; line-height: 1.4; color: var(--sub); }
+.recommendation-rank { font-variant-numeric: tabular-nums; color: var(--body); }
+.recommendation-arrow { margin-left: auto; color: var(--accent); }
+.recommendation-line { padding-top: 14px; font-size: 11px; color: var(--sub); }
+.recommendation-line:empty { padding-top: 8px; }
+.recommendation-name { padding-top: 4px; font-size: 20px; line-height: 1.25; font-weight: 600; letter-spacing: -.01em; overflow-wrap: anywhere; transition: color .25s var(--ease); }
+.recommendation-card:hover .recommendation-name { color: var(--accent); }
+.recommendation-card:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: var(--r-sm); }
+.recommendation-card .price-wrap { display: block; }
+.recommendation-card .dish-price { padding: 5px 0 0; white-space: normal; line-height: 1.5; }
+html.show-prices .recommendation-card .price-wrap { max-height: 80px; }
+.recommendation-card .dish-photo { aspect-ratio: 8 / 5; }
+.recommendation-match { padding-top: 14px; font-size: 12px; color: var(--body); }
+.recommendation-missing { padding-top: 4px; font-size: 11px; color: var(--sub); }
+.recommendation-missing:empty { padding: 0; }
+.dish { scroll-margin-top: 24px; }
+.dish:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: var(--r-sm); }
+@media (max-width: 600px) {
+  .recommendation-list { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(220px, 78%); gap: 24px; overflow-x: auto; padding: 0 4px 8px; }
+  .recommendation-slot:empty { display: none; }
+}
+
 /* 6. Raw data section.
    The panel is a max-height disclosure (same pattern as .mensa-dishes
    collapse): overflow hidden + animated max-height, NOT display none/block

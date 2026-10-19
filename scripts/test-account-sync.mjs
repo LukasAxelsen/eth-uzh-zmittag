@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {createPreferenceSync} from '../template/account-sync.mjs';
 
-const defaults = {meal: 'Lunch', selected: ['eth-9'], photos: true, openingTimes: true, prices: true,
+const defaults = {meal: 'Lunch', selected: ['eth-9'], photos: true, openingTimes: true, prices: true, recommendations: true,
   theme: 'light', customGroups: {}, hiddenGroups: [], collapsedMensas: []};
 const clone = value => structuredClone(value);
 const tick = () => new Promise(resolve => setTimeout(resolve, 15));
@@ -46,11 +46,14 @@ assert.deepEqual(existing.writes[0].patch, {photos: false});
 
 // Old documents remain valid; default group deletion/reset patches one field.
 const legacy = device(); legacy.login();
-const oldPrefs = clone(defaults); delete oldPrefs.hiddenGroups;
+const oldPrefs = clone(defaults); delete oldPrefs.hiddenGroups; delete oldPrefs.recommendations;
 legacy.receive(oldPrefs); legacy.sync.resolveConflict('cloud');
 assert.deepEqual(legacy.prefs.hiddenGroups, []);
+assert.equal(legacy.prefs.recommendations, true);
+legacy.edit({recommendations: false}); await tick();
+assert.deepEqual(legacy.writes.at(-1).patch, {recommendations: false});
 legacy.edit({hiddenGroups: ['Central']}); await tick();
-assert.deepEqual(legacy.writes[0].patch, {hiddenGroups: ['Central']});
+assert.deepEqual(legacy.writes.at(-1).patch, {hiddenGroups: ['Central']});
 legacy.edit({hiddenGroups: []}); await tick();
 assert.deepEqual(legacy.writes.at(-1).patch, {hiddenGroups: []});
 

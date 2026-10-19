@@ -238,5 +238,13 @@
   "kind.meal_dose": "dosis per cibum",
   "kind.minimum": "minimum",
   "kind.reference_range": "spatium relationis",
-  "kind.reference": "relatio"
+  "kind.reference": "relatio",
+  "settings.recommendations": "Fercula commendata monstra",
+  "recommendations.title": "Fercula commendata",
+  "recommendations.needsTargets": "Nullae normae comparabiles. Data mea et optiones nutritionis inspice.",
+  "recommendations.noData": "Nulla fercula in hac selectione habent quantitates nutrimentorum per portionem comparabiles.",
+  "recommendations.method": "Secundum normas huius cenae: primum data portionis pleniora, deinde minima discrepantia universa.",
+  "recommendations.match": "{met} / {total} normae impletae",
+  "recommendations.missing": "Nutrimenta sine datis: {count}",
+  "recommendations.open": "Electio {rank}: {dish} apud {mensa}. Ad ferculum transi."
 }

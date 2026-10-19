@@ -2,10 +2,44 @@ import assert from 'node:assert/strict';
 import {test} from 'node:test';
 import {readFileSync} from 'node:fs';
 import {DEFAULT_NUTRITION, STANDARDS, STANDARD_NOTES, FieldError, PROFILE_FIELDS, calculatePlan, coverageTargets, coverage,
-  fieldValue, sanitizeProfile, sanitizeNutrition, validNutritionPreferences} from '../template/nutrition.mjs';
+  fieldValue, sanitizeProfile, sanitizeNutrition, validNutritionPreferences, rankMeals} from '../template/nutrition.mjs';
 const en = JSON.parse(readFileSync(new URL('../template/i18n/en.json', import.meta.url), 'utf8'));
 const profile = {ageYears: 30, sex: 'male', heightCm: 180, weightKg: 75,
   activity: {pal: 1.6, cnClass: 'moderate'}, training: {weeklyHours: 7, carbohydrateLoad: 'high'}};
+
+test('recommendations minimize relative deviation with coverage semantics and stable ties', () => {
+  const target = (low, high, options = {}) => ({ref: {amount: {low, high}}, ...options});
+  const targets = {kcal: target(1000, 1000), protein: target(30, 30),
+    salt: target(2, 2, {limit: true}), fat: target(20, 30, {range: true})};
+  const meal = (name, total) => ({dish: {dish: name, nutrition: {total}}});
+  const meals = [
+    meal('Below', {kcal: 800, protein: 15, salt: 1, fat: 20}),
+    meal('Above', {kcal: 1100, protein: 90, salt: 2.2, fat: 25}),
+    meal('Meets', {kcal: 1000, protein: 90, salt: 0, fat: 20}),
+    meal('Equal match', {kcal: 1000, protein: 30, salt: 2, fat: 30}),
+    meal('Incomplete', {kcal: 1000}),
+  ];
+  const ranked = rankMeals(meals, targets, 5);
+  assert.deepEqual(ranked.map(m => m.dish.dish), ['Meets', 'Equal match', 'Above', 'Below', 'Incomplete']);
+  assert.equal(ranked[0].met, 4, 'protein reference is a minimum; zero salt is a valid covered budget');
+  assert.ok(Math.abs(ranked[2].deviation - .05) < 1e-10, 'kcal and grams use equal relative weights');
+  assert.equal(ranked[4].missing, 3, 'missing values are explicit, never counted as covered');
+  assert.equal(rankMeals(meals, targets).length, 3);
+  assert.deepEqual(rankMeals(meals, {}), []);
+  assert.equal(rankMeals(meals, {kcal: target(800, 800)})[0].dish.dish, 'Below', 'meal targets change ranking');
+});
+
+test('recommendations do not substitute densities/weight or rank buffet placeholders', () => {
+  const targets = coverageTargets(calculatePlan(profile, DEFAULT_NUTRITION).lunch);
+  const meal = nutrition => ({dish: {nutrition}});
+  assert.deepEqual(rankMeals([
+    meal({p100: {kcal: 100, protein: 20}, total: {weight: 400}}),
+    meal({total: {kcal: 0, protein: 0, salt: 0}}),
+    meal({total: {kcal: '500', protein: Infinity, fat: -10}}),
+  ], targets), []);
+  const partial = rankMeals([meal({total: {kcal: 500}}), meal({total: {kcal: 600, protein: 20}})], targets);
+  assert.equal(partial[0].compared, 2, 'when all data is partial, most complete evidence ranks first');
+});
 
 test('every supplied standard is available without fabricating missing nutrients', () => {
   for (const standard of Object.keys(STANDARDS)) {

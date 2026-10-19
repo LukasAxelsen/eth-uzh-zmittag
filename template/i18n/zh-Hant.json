@@ -238,5 +238,13 @@
   "kind.meal_dose": "每餐劑量",
   "kind.minimum": "最低量",
   "kind.reference_range": "參考範圍",
-  "kind.reference": "參考量"
+  "kind.reference": "參考量",
+  "settings.recommendations": "顯示推薦餐點",
+  "recommendations.title": "推薦餐點",
+  "recommendations.needsTargets": "暫無可比較的營養目標。請檢查「我的資料」和營養設定。",
+  "recommendations.noData": "目前選擇中，沒有具備可比較的每份營養資料的餐點。",
+  "recommendations.method": "按本餐營養目標排序：優先採用每份營養資料較完整的餐點，再比較整體偏差。",
+  "recommendations.match": "已達成 {met} / {total} 項目標",
+  "recommendations.missing": "缺少營養資料：{count} 項",
+  "recommendations.open": "第 {rank} 項：{mensa} 的 {dish}。前往餐點。"
 }

@@ -59,6 +59,9 @@
       </div>
     </header>
 
+    <!-- Ranked choices use the same keyed render/enter/exit pipeline as menus. -->
+    <div id="recommendations"></div>
+
     <!-- ======================= Content ======================= -->
     <main id="content" aria-live="polite">
       <!-- iOS-style activity indicator (UIActivityIndicator look):
@@ -169,6 +172,11 @@
       <section class="selector-pane settings-pane">
         <h3 class="selector-pane-title" data-i18n="settings.general">General</h3>
         <div id="nutrition-settings-fields"></div>
+        <div class="mensa-row photo-row" id="recommendations-row" role="button" tabindex="0"
+             aria-pressed="true">
+          <span class="mensa-check" aria-hidden="true"></span>
+          <span class="mensa-label" data-i18n="settings.recommendations">Show recommended menus</span>
+        </div>
       </section>
       <section class="selector-pane settings-pane">
         <h3 class="selector-pane-title" data-i18n="settings.appearance">Appearance</h3>

@@ -238,5 +238,13 @@
   "kind.meal_dose": "每餐剂量",
   "kind.minimum": "最低量",
   "kind.reference_range": "参考范围",
-  "kind.reference": "参考量"
+  "kind.reference": "参考量",
+  "settings.recommendations": "显示推荐餐点",
+  "recommendations.title": "推荐餐点",
+  "recommendations.needsTargets": "暂无可比较的营养目标。请检查“我的数据”和营养设置。",
+  "recommendations.noData": "当前选择中，没有具备可比较的每份营养数据的餐点。",
+  "recommendations.method": "按本餐营养目标排序：优先采用每份营养数据较完整的餐点，再比较总体偏差。",
+  "recommendations.match": "已满足 {met} / {total} 项目标",
+  "recommendations.missing": "缺少营养数据：{count} 项",
+  "recommendations.open": "第 {rank} 项：{mensa} 的 {dish}。跳转至餐点。"
 }

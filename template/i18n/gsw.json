@@ -238,5 +238,13 @@
   "kind.meal_dose": "Dosis pro Mahlziit",
   "kind.minimum": "Minimum",
   "kind.reference_range": "Referänzbereich",
-  "kind.reference": "Referänzwärt"
+  "kind.reference": "Referänzwärt",
+  "settings.recommendations": "Empfohlni Menüs aazeige",
+  "recommendations.title": "Empfohlni Menüs",
+  "recommendations.needsTargets": "Kei vergliichbare Ziel. Prüef Mini Date und dini Ernährigs-Iistellige.",
+  "recommendations.noData": "I de aktuelle Uswahl hets kei Gricht mit vergliichbare Nährwärt pro Portion.",
+  "recommendations.method": "Nach dine Mahlziiteziel: zerscht möglichst vollständigi Portionsdate, denn die chliinschti Gsamtabwiichig.",
+  "recommendations.match": "{met} / {total} Ziel erreicht",
+  "recommendations.missing": "Fählendi Nährwärt: {count}",
+  "recommendations.open": "Uswahl {rank}: {dish} bi {mensa}. Zum Gricht springe."
 }

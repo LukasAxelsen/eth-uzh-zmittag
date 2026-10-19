@@ -208,3 +208,33 @@ export function coverage(total, target, key) {
   else statusKey = range ? 'coverage.status.inRange' : 'coverage.status.referenceCovered';
   return {tone, percent: Math.round(total / high * 100), fill: Math.min(1, total / high), statusKey};
 }
+
+/** Rank the caller's selected-day/meal candidates using the SAME references as
+ * coverage. Missing serving totals are unknown, never zero or per-100g values.
+ * Compare the most complete evidence first, then the mean relative distance to
+ * each acceptable range/budget/minimum. Every nutrient has equal weight; units
+ * cannot dominate the score. Covered minima and unused upper budgets cost zero.
+ * Source order breaks ties so repeated renders never shuffle equal matches. */
+export function rankMeals(candidates, targets, limit = 3) {
+  const keys = Object.keys(targets || {});
+  if (!keys.length) return [];
+  return candidates.flatMap((candidate, order) => {
+    const totals = candidate.dish.nutrition?.total || {};
+    if (!Object.entries(totals).some(([key, value]) => key !== 'weight' && Number.isFinite(value) && value > 0)) return [];
+    let compared = 0, met = 0, deviation = 0;
+    for (const key of keys) {
+      const target = targets[key], total = totals[key];
+      const value = coverage(total, target, key);
+      if (!value) continue;
+      compared++;
+      if (value.tone === 'met') { met++; continue; }
+      const edge = value.tone === 'low' ? target.ref.amount.low : target.ref.amount.high;
+      // An exclusive boundary is a real miss even when the numerical gap is 0.
+      deviation += Math.max(1e-10, Math.abs(total - edge) / target.ref.amount.high);
+    }
+    if (!compared) return [];
+    return [{...candidate, compared, met, missing: keys.length - compared,
+      deviation: deviation / compared, order}];
+  }).sort((a, b) => a.missing - b.missing || a.deviation - b.deviation || a.order - b.order)
+    .slice(0, limit);
+}

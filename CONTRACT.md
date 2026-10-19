@@ -141,6 +141,7 @@ header .header
     #planning-fields (editable lunch/dinner shares and applicable plan inputs)
   Setting tab:
     GENERAL: #nutrition-settings-fields (standard and applicable calculation choices)
+    #recommendations-row (Show recommended menus; after calculation choices, before Appearance)
     APPEARANCE: existing display toggles and theme control
     .photo-row (.mensa-row style; .selected = photos on; label "Show menu photos")
     #opening-row (.mensa-row .photo-row style; label "Show opening times")
@@ -150,6 +151,12 @@ header .header
       "English name · native name"; options keyed by language code)
 #sidebar-dialog (one native modal for reset, cloud choice and connection errors)
   #sidebar-dialog-content (keyed prompt; focus containment, Escape, return focus)
+#recommendations (between the meal switch and main content)
+  .recommendations-panel (keyed; heading, ranking explanation or empty state)
+    .recommendation-list (three columns; horizontal scrolling on narrow screens)
+      .recommendation-slot (stable rank; registered in FLIP_CONTAINERS)
+        a.recommendation-card (keyed by mensa + dishKey; no border, shadow or fill)
+          rank, source mensa/line/dish, shared price/photo presentation, target count
 main#content
   section.mensa-section (collapsible: click .mensa-title toggles)
     h2.mensa-title (with .mensa-caret)
@@ -207,7 +214,7 @@ Every content change runs through the ONE pipeline:
 
 ## localStorage key: "eth-uzh-nutrition-prefs"
 ```json
-{"meal":"Lunch","selected":["eth-9","uzh-obere-mensa",...],"photos":true,"openingTimes":true,"prices":true,"theme":"light","language":"en","customGroups":{"My Group":["eth-3",...]},"hiddenGroups":[],"collapsedMensas":[],"userProfile":{},"nutritionSettings":{"standard":"ch_blv","energyMethod":"standard","lunchPercent":40,"dinnerPercent":30,"proteinMealStrategy":"proportional","s3MacroPolicy":"individualized"}}
+{"meal":"Lunch","selected":["eth-9","uzh-obere-mensa",...],"photos":true,"openingTimes":true,"prices":true,"recommendations":true,"theme":"light","language":"en","customGroups":{"My Group":["eth-3",...]},"hiddenGroups":[],"collapsedMensas":[],"userProfile":{},"nutritionSettings":{"standard":"ch_blv","energyMethod":"standard","lunchPercent":40,"dinnerPercent":30,"proteinMealStrategy":"proportional","s3MacroPolicy":"individualized"}}
 ```
 - photos: bool, DEFAULT true (photos on — product owner); openingTimes/prices:
   bool, DEFAULT true, persisted through the same loadPrefs/savePrefs path.
@@ -222,6 +229,9 @@ Every content change runs through the ONE pipeline:
   the first visit follows the browser's language list (de-CH → German,
   zh-TW/HK → Traditional Chinese), falling back to English. Cloud documents
   from before the setting keep the device's language.
+- recommendations: bool, DEFAULT true, including older local/cloud documents.
+  Uses the existing preference conflict and field-patch path. Deploy the
+  Firestore rules accepting this optional field before publishing the frontend.
 
 ## Interface languages
 
@@ -326,3 +336,25 @@ Every content change runs through the ONE pipeline:
 - Dark/auto palettes use identical coverage tokens. The meter's accessible
   description conveys units, reference semantics and status without adding
   visible status text to the colour-only presentation.
+
+## Recommended menus
+
+- Up to three individual dishes from the selected mensas, active date and meal,
+  ordered left to right. A collapsed mensa remains selected and eligible.
+- `nutrition.mjs:rankMeals` uses the exact comparable targets used by coverage.
+  Most complete serving data ranks first, then smallest mean relative deviation
+  from the acceptable interval/minimum/upper budget. Each comparable nutrient
+  has equal weight. A covered minimum or a value within an upper budget has
+  zero deviation; energy and intake ranges penalize both undershoot and excess.
+  Stable source order breaks ties. This is a menu comparison, not a new standard.
+- No per-100g substitution, assumed portions or invented targets. All-zero
+  serving placeholders and meals with no comparable values are excluded.
+  Partial results show the missing count; the target count covers only measured
+  nutrients. Missing/invalid/out-of-scope targets produce an explanatory state.
+- Each rank slot uses the shared keyed enter/exit pipeline. Language, photo and
+  price switches preserve recommendation nodes. `applyPhotos()` handles both
+  recommendations and full dishes, resolving source records from current state.
+- Activating a recommendation clears its mensa's collapsed preference through
+  `renderAll()`, waits for shared layout transitions, then focuses and scrolls to
+  its stable dish anchor. Reduced motion scrolls immediately. Changing the date,
+  meal or selection cancels obsolete destinations.

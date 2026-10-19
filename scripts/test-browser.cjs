@@ -35,6 +35,115 @@ async function sidebar(page, name) {
   await page.waitForFunction(() => !document.querySelector('#sidebar-pages [data-entering], #sidebar-pages [data-exiting]'));
 }
 
+async function verifyRecommendations(browser, url) {
+  const {DEFAULT_NUTRITION, calculatePlan, coverageTargets} = await import('../template/nutrition.mjs');
+  const profile = {ageYears: 30, sex: 'male', heightCm: 180, weightKg: 75, activity: {pal: 1.6}};
+  const targets = coverageTargets(calculatePlan(profile, DEFAULT_NUTRITION).lunch);
+  const total = Object.fromEntries(Object.entries(targets).map(([key, t]) => [key,
+    t.limit ? t.ref.amount.high / 2 : (t.ref.amount.low + t.ref.amount.high) / 2]));
+  const photo = 'data:image/svg+xml,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="250"><rect width="400" height="250" fill="#d1dac0"/></svg>');
+  const fixture = JSON.parse(fs.readFileSync(path.join(directory, 'data.json')));
+  const mensa = fixture.days['2026-10-13'].mensas.find(m => m.id === 'eth-9');
+  mensa.meals.Lunch = ['Best fixture meal', 'Second fixture meal', 'Third fixture meal', 'Density only'].map((dish, i) => ({
+    dish, line: 'Fixture menu', desc: '', photo, price: [{label: 'STUD', value: 7.5}],
+    nutrition: {p100: {kcal: 120}, total: i === 3 ? {} : {...total, kcal: total.kcal * (1 - i * .2)}}
+  }));
+  mensa.meals.Dinner = [{...mensa.meals.Lunch[1], dish: 'Dinner fixture meal'}];
+  for (const width of [1280, 390, 320]) {
+    const context = await browser.newContext({viewport: {width, height: 900}, reducedMotion: width === 320 ? 'reduce' : 'no-preference'});
+    await context.route('**/data.json*', route => route.fulfill({contentType: 'application/json', body: JSON.stringify(fixture)}));
+    const page = await context.newPage(), errors = [];
+    page.on('pageerror', e => errors.push(e.message));
+    await page.clock.install({time: new Date('2026-10-13T10:00:00Z')});
+    await page.addInitScript(prefs => {
+      if (!localStorage.getItem('eth-uzh-nutrition-prefs')) localStorage.setItem('eth-uzh-nutrition-prefs', JSON.stringify(prefs));
+    }, {selected: ['eth-9'], photos: true, prices: true, recommendations: true, language: 'en',
+      collapsedMensas: ['eth-9'], userProfile: profile, nutritionSettings: DEFAULT_NUTRITION});
+    await page.goto(url); await page.waitForSelector('html.anim-ready');
+    const cards = page.locator('.recommendation-card');
+    assert.deepEqual(await cards.locator('.recommendation-name').allTextContents(), ['Best fixture meal', 'Second fixture meal', 'Third fixture meal']);
+    assert.equal(await cards.locator('.dish-photo').count(), 3);
+    assert.equal(await cards.first().evaluate(el => getComputedStyle(el).borderTopWidth), '0px');
+    assert.equal(await cards.first().evaluate(el => getComputedStyle(el).boxShadow), 'none');
+    assert.equal(await page.locator('body').evaluate(el => el.scrollWidth <= innerWidth), true, 'horizontal strip does not widen page');
+    assert.equal(await page.locator('#recommendations [data-entering]').count(), 0, 'first paint is silent');
+    const card = await cards.first().elementHandle();
+    const dish = await page.locator('#content .dish').first().elementHandle();
+    const targetId = (await cards.first().getAttribute('href')).slice(1);
+    await cards.first().focus(); await page.keyboard.press('Enter');
+    await page.waitForFunction(id => document.activeElement.id === id, targetId);
+    assert.equal(await page.locator('.mensa-section').getAttribute('class'), 'mensa-section', 'navigation expands collapsed mensa');
+    await page.waitForFunction(id => Math.abs(document.getElementById(id).getBoundingClientRect().top - 24) < 3, targetId);
+    await sidebar(page, 'Setting');
+    const settingsOrder = await page.evaluate(() => ['nutrition-settings-energyMethod', 'recommendations-row', 'appearance-seg']
+      .map(id => document.getElementById(id).getBoundingClientRect().top));
+    assert.ok(settingsOrder[0] < settingsOrder[1] && settingsOrder[1] < settingsOrder[2]);
+    await page.locator('#photo-row').click();
+    await page.waitForFunction(() => !document.querySelector('.recommendation-card .dish-photo'));
+    await page.locator('#price-row').click();
+    assert.equal(await cards.first().locator('.price-wrap').getAttribute('aria-hidden'), 'true');
+    await page.locator('#photo-row').click();
+    for (let i = 0; i < 4; i++) await page.locator('#photo-row').click({force: true});
+    await page.locator('#price-row').click();
+    await page.waitForFunction(() => [...document.querySelectorAll('.recommendation-card .dish-photo')].length === 3 &&
+      !document.querySelector('.recommendation-card [data-photo-closing]'));
+    assert.equal(await card.evaluate(el => el.isConnected && el === document.querySelector('.recommendation-card')), true);
+    assert.equal(await dish.evaluate(el => el.isConnected && el === document.querySelector('#content .dish')), true);
+    await page.locator('#site-language').selectOption('zh-Hans');
+    await page.waitForFunction(() => document.documentElement.lang === 'zh-Hans');
+    assert.equal(await card.evaluate(el => el.isConnected && el === document.querySelector('.recommendation-card')), true, 'translation reuses cards');
+    await page.locator('#site-language').selectOption('en');
+    await page.waitForFunction(() => document.documentElement.lang === 'en');
+    await page.locator('#nutrition-settings-energyMethod').selectOption('provided');
+    await sidebar(page, 'My Data');
+    await page.locator('#nutrition-settings-energyKcal').fill(String(total.kcal * .6 / .4));
+    await page.waitForFunction(() => !document.querySelector('#recommendations [data-entering], #recommendations [data-exiting]'));
+    assert.equal(await cards.first().locator('.recommendation-name').textContent(), 'Third fixture meal', 'energy settings recompute ranking');
+    await page.locator('#nutrition-profile-ageYears').fill('999');
+    await page.waitForFunction(() => !document.querySelector('.recommendation-card'));
+    await page.locator('#nutrition-profile-ageYears').fill('30');
+    await sidebar(page, 'Setting');
+    await page.locator('#nutrition-settings-energyMethod').selectOption('standard');
+    await page.waitForFunction(() => !document.querySelector('#recommendations [data-entering], #recommendations [data-exiting]'));
+    assert.equal(await dish.evaluate(el => el.isConnected && el === document.querySelector('#content .dish')), true, 'ranking changes preserve full menus');
+    await page.locator('#recommendations-row').click();
+    await page.waitForFunction(() => !document.querySelector('#recommendations').children.length);
+    await page.reload(); await page.waitForSelector('html.anim-ready');
+    assert.equal(await cards.count(), 0, 'off persists');
+    await sidebar(page, 'Setting');
+    await page.locator('#recommendations-row').click();
+    for (let i = 0; i < 4; i++) await page.locator('#recommendations-row').click({force: true});
+    await page.waitForFunction(() => !document.querySelector('#recommendations [data-entering], #recommendations [data-exiting]'));
+    assert.equal(await cards.count(), 3, 'rapid toggles settle without duplicates');
+    await page.getByRole('button', {name: 'Dark', exact: true}).click();
+    await page.locator('#menu-btn').click();
+    await page.waitForFunction(() => !document.documentElement.classList.contains('scroll-locked'));
+    await page.evaluate(() => scrollTo(0, 0));
+    await page.screenshot({path: '/tmp/zmittag-recommendations-' + width + '.png'});
+    await page.getByRole('button', {name: 'Dinner', exact: true}).click();
+    if (width === 320) assert.equal(await page.locator('#recommendations [data-entering], #recommendations [data-exiting]').count(), 0);
+    await page.waitForFunction(() => !document.querySelector('#recommendations [data-entering], #recommendations [data-exiting]'));
+    assert.deepEqual(await cards.locator('.recommendation-name').allTextContents(), ['Dinner fixture meal']);
+    await page.locator('#date-trigger').click();
+    await page.locator('.cal-cell[data-date="2026-10-14"]').click();
+    await page.keyboard.press('Escape');
+    await page.getByRole('button', {name: 'Lunch', exact: true}).click();
+    await page.waitForFunction(() => !document.querySelector('#recommendations [data-entering], #recommendations [data-exiting]'));
+    assert.ok(await cards.count() > 0);
+    assert.ok((await cards.locator('.recommendation-name').allTextContents()).every(name => !name.includes('fixture meal')));
+    assert.ok((await cards.evaluateAll(nodes => nodes.map(n => n.getAttribute('href')))).every(href => href.includes('dish-2026-10-14-lunch-')));
+    await sidebar(page, 'Mensas');
+    await page.locator('.selector-mensas [data-mensa="eth-9"]').click();
+    await page.waitForFunction(() => !document.querySelector('.recommendation-card'));
+    await sidebar(page, 'My Data');
+    await page.locator('#nutrition-profile-ageYears').fill('');
+    assert.match(await page.locator('.recommendations-note').textContent(), /No comparable targets/);
+    assert.deepEqual(errors, []);
+    await context.close();
+  }
+  console.log('PASS: recommendations — ranked selection, targets, missing data, mobile/dark, photos/prices, keyboard navigation, collapsed mensa, language reuse, persistence, rapid toggles and reduced motion');
+}
+
 async function verifyMenus(page, data, iso) {
   await settle(page);
   const prefs = await page.evaluate(() => JSON.parse(localStorage.getItem('eth-uzh-nutrition-prefs')));
@@ -363,7 +472,8 @@ async function verifyCjkTypography(browser, url) {
       }
     }
     const stack = await page.locator('body').evaluate(el => getComputedStyle(el).fontFamily);
-    assert.match(stack, /^-apple-system, BlinkMacSystemFont, "SF Pro Text"/, 'Latin text keeps the SF stack');
+    // Chromium on macOS serializes the BlinkMacSystemFont alias as system-ui.
+    assert.match(stack, /^-apple-system, (?:BlinkMacSystemFont|"system-ui"), "SF Pro Text"/, 'Latin text keeps the SF stack');
     if (process.env.LANGUAGE_SCREENSHOTS) await page.locator('.header').screenshot({path: path.join(process.env.LANGUAGE_SCREENSHOTS, `heading-${code}.png`)});
   }
   // Native names in the picker keep their own standard in any interface language.
@@ -507,6 +617,10 @@ async function verifyLanguages(browser, url) {
     await new Promise((resolve, reject) => {server.once('error', reject); server.listen(0, '127.0.0.1', resolve);});
     const url = `http://127.0.0.1:${server.address().port}/?v=hardening`;
     browser = await chromium.launch({headless: true, ...(process.env.BROWSER_EXECUTABLE ? {executablePath: process.env.BROWSER_EXECUTABLE} : {})});
+    if (process.env.BROWSER_ONLY === 'recommendations') {
+      await verifyRecommendations(browser, url);
+      return;
+    }
     const context = await browser.newContext({viewport: {width: 1280, height: 900}, timezoneId: 'America/Los_Angeles'});
     await context.route('https://storage.googleapis.com/**', route => route.fulfill({contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360"><rect width="640" height="360" fill="#ddd"/></svg>'}));
     const page = await context.newPage();
@@ -593,6 +707,7 @@ async function verifyLanguages(browser, url) {
     await verifyNutrition(browser, url);
     await verifyLanguages(browser, url);
     await verifyCjkTypography(browser, url);
+    await verifyRecommendations(browser, url);
 
     const reduced = await browser.newContext({reducedMotion: 'reduce'});
     const reducedPage = await reduced.newPage();

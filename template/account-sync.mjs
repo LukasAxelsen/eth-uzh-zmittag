@@ -2,8 +2,8 @@
 // The personal nutrition profile shares the same document and conflict choice.
 import {DEFAULT_NUTRITION, validNutritionPreferences} from './nutrition.mjs';
 import {LANGUAGE_CODES} from './i18n.mjs';
-const KEYS = ['meal', 'selected', 'photos', 'openingTimes', 'prices', 'theme', 'language', 'customGroups', 'hiddenGroups', 'collapsedMensas', 'userProfile', 'nutritionSettings'];
-const withDefaults = value => ({hiddenGroups: [], userProfile: {}, nutritionSettings: {...DEFAULT_NUTRITION}, ...value});
+const KEYS = ['meal', 'selected', 'photos', 'openingTimes', 'prices', 'recommendations', 'theme', 'language', 'customGroups', 'hiddenGroups', 'collapsedMensas', 'userProfile', 'nutritionSettings'];
+const withDefaults = value => ({hiddenGroups: [], recommendations: true, userProfile: {}, nutritionSettings: {...DEFAULT_NUTRITION}, ...value});
 const copy = value => JSON.parse(JSON.stringify(value));
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 const changed = (before, after) => Object.fromEntries(KEYS.filter(key => Object.hasOwn(after, key) && !same(before[key], after[key])).map(key => [key, after[key]]));
@@ -13,6 +13,7 @@ function validPreferences(p) {
     validNutritionPreferences(p) &&
     ['light', 'dark', 'auto'].includes(p.theme) &&
     (p.language === undefined || LANGUAGE_CODES.includes(p.language)) &&
+    (p.recommendations === undefined || typeof p.recommendations === 'boolean') &&
     ['photos', 'openingTimes', 'prices'].every(key => typeof p[key] === 'boolean') &&
     ['selected', 'collapsedMensas'].every(key => Array.isArray(p[key]) && p[key].length <= 64 && p[key].every(id => typeof id === 'string')) &&
     (p.hiddenGroups === undefined || (Array.isArray(p.hiddenGroups) && p.hiddenGroups.length <= 64 && p.hiddenGroups.every(name => typeof name === 'string'))) &&
