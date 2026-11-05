@@ -62,6 +62,14 @@
   metadata is not used as frontend rendering state. SV directly supplied
   per-100g values take precedence over Cookpit on matched recipes.
 - `photo`: absolute image URL or "" (ETH URLs carry `?client-id=ethz-wcms`; UZH photos are dish.imageUrl on the detail page). Empty string = no photo.
+- ETH dishes with source IDs also carry `photoSource: {mealTimeId, lineId,
+  mealName, description}` (raw Cookpit identity). The browser rechecks missing
+  photos for Zurich today against the official CORS-enabled meals endpoint,
+  at most once per five minutes. Date, facility, slot, IDs and raw recipe must
+  all match uniquely. Only missing `photo` values change; existing photos,
+  menus and nutrition remain as published. Source failures leave the snapshot
+  usable. State updates call `renderAll()`; `applyPhotos()` owns the DOM and
+  its existing height animation. No image generation or cross-date fallback.
 - `price`: array of `{label, value}` (labels STUD, INT, INT&STUD, EXT, ALL); empty array = no price data. `priceUnit`: "Portion" | "100 g"; absent on UZH dishes.
 - mensa `opening`: `{slot: "HH:MM - HH:MM" or null}` — per meal slot; null = no service that slot.
 - group values: Central, Hoengg, Irchel, Oerlikon, Other

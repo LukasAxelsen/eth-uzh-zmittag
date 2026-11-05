@@ -2,7 +2,7 @@ name: Build and deploy daily menus
 
 on:
   schedule:
-    - cron: '17 3,7 * * *'  # Early refresh + retry; avoid the busy full hour
+    - cron: '17 3,7,10,11 * * *'  # Include late lunch photo uploads; avoid the busy full hour
   workflow_dispatch:
     inputs:
       allow_empty_today:
@@ -32,6 +32,7 @@ jobs:
           python3 scripts/test-menu.py
           python3 scripts/test-hardening.py
           node scripts/test-date.cjs
+          node scripts/test-menu-photos.mjs
           node scripts/test-settings.cjs
           node scripts/test-account-sync.mjs
           node scripts/test-nutrition.mjs

@@ -11,7 +11,7 @@ const root = path.resolve(__dirname, '..');
 const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'menu-browser-'));
 const server = http.createServer((req, res) => {
   const name = new URL(req.url, 'http://localhost').pathname.slice(1) || 'index.html';
-  if (!['index.html', 'app.js', 'firebase-config.js', 'account-sync.mjs', 'nutrition.mjs', 'i18n.mjs', 'nutrition-core/core.mjs', 'nutrition-core/hall.mjs', 'nutrition-core/reference-data.mjs', 'style.css', 'data.json', 'index.txt'].includes(name) &&
+  if (!['index.html', 'app.js', 'firebase-config.js', 'account-sync.mjs', 'nutrition.mjs', 'i18n.mjs', 'menu-photos.mjs', 'nutrition-core/core.mjs', 'nutrition-core/hall.mjs', 'nutrition-core/reference-data.mjs', 'style.css', 'data.json', 'index.txt'].includes(name) &&
       !/^i18n\/[\w-]+\.json$/.test(name) && !/^fonts\/[\w-]+\.woff2$/.test(name)) { res.writeHead(404).end(); return; }
   res.setHeader('Content-Type', (/\.(m?js)$/.test(name) ? 'text/javascript' : /\.json$/.test(name) ? 'application/json' :
     /\.woff2$/.test(name) ? 'font/woff2' : ({'style.css': 'text/css'})[name]) || 'text/html');
@@ -33,6 +33,54 @@ async function sidebar(page, name) {
   if (await page.locator('#menu-btn').getAttribute('aria-expanded') === 'false') await page.locator('#menu-btn').click();
   await page.getByRole('tab', {name, exact: true}).click();
   await page.waitForFunction(() => !document.querySelector('#sidebar-pages [data-entering], #sidebar-pages [data-exiting]'));
+}
+
+async function verifyLatePhotos(browser, url) {
+  const raw = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/eth-archimedes-2026-11-05.json')));
+  const fixture = JSON.parse(fs.readFileSync(path.join(directory, 'data.json')));
+  fixture.days['2026-11-05'] = structuredClone(fixture.days['2026-10-13']);
+  const mensa = fixture.days['2026-11-05'].mensas.find(m => m.id === 'eth-8');
+  mensa.meals.Lunch = raw.meals.map(m => ({dish: m['meal-name'], line: m['line-name'], desc: m.description,
+    photo: '', nutrition: {p100: {}, total: {}}, price: [],
+    photoSource: {mealTimeId: m['meal-time-id'], lineId: m['line-id'], mealName: m['meal-name'], description: m.description}}));
+  for (const reducedMotion of ['no-preference', 'reduce']) {
+    const context = await browser.newContext({viewport: {width: 1100, height: 900}, reducedMotion});
+    let release, requests = 0;
+    const ready = new Promise(resolve => {release = resolve;});
+    await context.route('**/data.json*', route => route.fulfill({json: fixture}));
+    await context.route('https://idapps.ethz.ch/cookpit-pub-services/v1/meals?*', async route => {
+      requests++;
+      await ready;
+      await route.fulfill({json: raw, headers: {'access-control-allow-origin': '*'}});
+    });
+    await context.route('https://idapps.ethz.ch/cookpit-pub-services/v1/images/*', route => route.fulfill({
+      contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=', 'base64')}));
+    const page = await context.newPage(), errors = [];
+    page.on('pageerror', e => errors.push(e.message));
+    await page.clock.install({time: new Date('2026-11-05T10:00:00Z')});
+    await page.addInitScript(() => localStorage.setItem('eth-uzh-nutrition-prefs', JSON.stringify({selected: ['eth-8'], language: 'en'})));
+    await page.goto(url + '?v=late-photos');
+    await page.waitForSelector('html.anim-ready');
+    await page.waitForFunction(() => document.querySelectorAll('#content .dish').length === 4);
+    const dish = await page.locator('#content .dish').first().elementHandle();
+    assert.equal(await page.locator('#content .dish-photo').count(), 0, 'initial stale snapshot renders immediately');
+    release();
+    await page.waitForFunction(() => document.querySelectorAll('#content .dish-photo').length === 4);
+    await settle(page);
+    assert.equal(await dish.evaluate(el => el.isConnected && el === document.querySelector('#content .dish')), true, 'late photos preserve dish nodes');
+    assert.ok((await page.locator('#content .dish-photo').evaluateAll(nodes => nodes.map(n => n.src))).every(src => src.endsWith('?client-id=ethz-wcms')));
+    await sidebar(page, 'Setting');
+    await page.locator('#photo-row').click();
+    await page.waitForFunction(() => !document.querySelector('#content .dish-photo'));
+    await page.locator('#photo-row').click();
+    await page.waitForFunction(() => document.querySelectorAll('#content .dish-photo').length === 4);
+    await settle(page);
+    assert.equal(await dish.evaluate(el => el.isConnected && el === document.querySelector('#content .dish')), true);
+    assert.equal(requests, 1, 'photo toggles do not refetch menus');
+    assert.deepEqual(errors, []);
+    await context.close();
+  }
+  console.log('PASS: Chromium late Archimedes photos — progressive loading, reused dish nodes, shared photo toggle animation and reduced motion');
 }
 
 async function verifyRecommendations(browser, url) {
@@ -621,6 +669,10 @@ async function verifyLanguages(browser, url) {
       await verifyRecommendations(browser, url);
       return;
     }
+    if (process.env.BROWSER_ONLY === 'photos') {
+      await verifyLatePhotos(browser, url);
+      return;
+    }
     const context = await browser.newContext({viewport: {width: 1280, height: 900}, timezoneId: 'America/Los_Angeles'});
     await context.route('https://storage.googleapis.com/**', route => route.fulfill({contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360"><rect width="640" height="360" fill="#ddd"/></svg>'}));
     const page = await context.newPage();
@@ -708,6 +760,7 @@ async function verifyLanguages(browser, url) {
     await verifyLanguages(browser, url);
     await verifyCjkTypography(browser, url);
     await verifyRecommendations(browser, url);
+    await verifyLatePhotos(browser, url);
 
     const reduced = await browser.newContext({reducedMotion: 'reduce'});
     const reducedPage = await reduced.newPage();

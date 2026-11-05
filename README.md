@@ -51,6 +51,13 @@ See [Firebase setup and sync behavior](docs/firebase-setup.md).
 | [SV public menus](https://sv-gastronomie.ch/stores) | Supplements matched Cookpit dishes with published serving weights, nutrition per serving and fiber for 11 ETH restaurants, including the Polyterrasse and Alumni Lounge dinner menus. |
 | [UZH Food2050](https://app.food2050.ch) | Public weekly and dish pages, including embedded Pages Router / App Router data. Each dated dish page supplies nutrition, prices and photos. The former GraphQL endpoint is no longer used. |
 
+Some ETH photos are uploaded after the build. While the page is visible it
+rechecks today's missing photos against Cookpit, at most every five minutes,
+and adds only photos matching the same restaurant, date, meal and exact recipe.
+Unavailable photos stay empty; source failures leave the static menus usable.
+Scheduled builds also refresh both providers at 10:17 and 11:17 UTC in addition
+to the early runs.
+
 Menu collection uses public sources; no personal account or configured secret
 is required for the scraper.
 SV's current website configuration and standard guest session are discovered
@@ -139,6 +146,7 @@ Offline regression checks (no live requests):
 python3 scripts/test-menu.py
 python3 scripts/test-hardening.py
 node scripts/test-date.cjs
+node scripts/test-menu-photos.mjs
 node scripts/test-settings.cjs
 node scripts/test-account-sync.mjs
 node scripts/test-i18n.mjs

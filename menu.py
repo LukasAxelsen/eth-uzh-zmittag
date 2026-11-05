@@ -542,6 +542,12 @@ def fetch_eth(date=None):
             "price": prices,
             "priceUnit": (m.get("price-unit-desc-short") or "").strip(),
         }
+        # Preserve the exact source identity, including the raw recipe text.
+        # The browser can fill late uploads without joining a changed menu,
+        # another restaurant/date/slot, or a similarly named dish.
+        if type(mt_id) is int and type(m.get('line-id')) is int:
+            dish['photoSource'] = {'mealTimeId': mt_id, 'lineId': m['line-id'],
+                'mealName': m['meal-name'], 'description': m.get('description') or ''}
         # ETH energy is kJ. There is no confirmed zero-as-missing sentinel:
         # retain supplied zeros, and omit only genuinely absent values.
         nutr = {}
@@ -1301,7 +1307,7 @@ def publish_site(payload, *, allow_empty_today=False):
 
     with open(os.path.join(TEMPLATE_DIR, "app.js")) as f:
         files['app.js'] = f.read().replace("DATE_PLACEHOLDER", today).replace("VER_PLACEHOLDER", rev)
-    for name in ('firebase-config.js', 'account-sync.mjs', 'nutrition.mjs', 'i18n.mjs'):
+    for name in ('firebase-config.js', 'account-sync.mjs', 'nutrition.mjs', 'i18n.mjs', 'menu-photos.mjs'):
         with open(os.path.join(TEMPLATE_DIR, name), encoding='utf-8') as f:
             files[name] = f.read().replace('../zmittag-nutrition-core/', './nutrition-core/')
     # UI/nutrition message catalogs; scripts/verify-i18n-contract.py checks them.

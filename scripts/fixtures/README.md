@@ -14,6 +14,11 @@ These fixtures exercise behavior; they are not a complete live menu snapshot.
   per-100g values to one decimal, yielding 2.0 g, and preserves serving values.
 - `eth-normal.json` / `eth-empty.json`: synthetic Cookpit response shapes
   for normal service and explicitly empty meals.
+- `eth-archimedes-2026-11-05.json`: captured official Cookpit lunch records,
+  reduced to photo identity fields and the dated meal time. The November 4
+  deployed snapshot had no photos for these November 5 dishes; the live source
+  later supplied four photos. Tests clear those photos before scraping, then
+  replay the late upload, including recipe/date/restaurant mismatch guards.
 - `eth-polyterrasse-2026-10-14.json` / `sv-polyterrasse-week.json`: minimized
   captured Cookpit and SV public menu records for matching regression tests.
   The SV fixture keeps that date's six lunch categories, product IDs,

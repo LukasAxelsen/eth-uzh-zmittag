@@ -203,7 +203,7 @@ class OutputPreservationTests(unittest.TestCase):
             self.assertEqual(report['mensaCount'], 32)
             self.assertEqual(report['sources']['ETH']['status'], 'ok')
             self.assertEqual(report['sources']['UZH']['status'], 'ok')
-            self.assertEqual({p.name for p in Path(directory).iterdir()}, {'data.json', 'index.txt', 'index.html', 'style.css', 'app.js', 'firebase-config.js', 'account-sync.mjs', 'nutrition.mjs', 'nutrition-core', 'i18n.mjs', 'i18n', 'fonts'})
+            self.assertEqual({p.name for p in Path(directory).iterdir()}, {'data.json', 'index.txt', 'index.html', 'style.css', 'app.js', 'firebase-config.js', 'account-sync.mjs', 'nutrition.mjs', 'nutrition-core', 'i18n.mjs', 'menu-photos.mjs', 'i18n', 'fonts'})
             fonts = ROOT / 'template' / 'fonts'
             self.assertEqual({p.name for p in (Path(directory) / 'fonts').iterdir()},
                              {p.name for p in fonts.iterdir() if p.suffix in ('.woff2', '.txt')})

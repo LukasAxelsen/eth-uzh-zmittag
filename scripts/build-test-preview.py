@@ -55,7 +55,7 @@ def main():
     index = args.output / 'index.html'
     html = index.read_text().replace('VER_PLACEHOLDER', 'hardening-preview')
     # Distinguish the demo's data from live menus without changing production UI.
-    html = html.replace('<span data-i18n="footer.refresh">Refresh scheduled at 03:17 / 07:17 UTC</span>',
+    html = html.replace('<span data-i18n="footer.refresh">Refresh scheduled at 03:17 / 07:17 / 10:17 / 11:17 UTC</span>',
                         '<span>Offline test fixtures</span>')
     index.write_text(html)
     closure_file.unlink()

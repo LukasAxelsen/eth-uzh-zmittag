@@ -18,7 +18,7 @@ async function boot(instant, days, stored = { selected: ['uzh-untere-mensa'] }) 
   const grid = { get innerHTML() { return gridHtml; }, set innerHTML(value) { gridWrites++; gridHtml = value; } };
   const elements = { 'date-heading': heading, 'cal-grid': grid, 'cal-title': {}, 'cal-note': {} };
   const context = vm.createContext({
-    testModules: [await import('../template/nutrition.mjs'), await import('../template/i18n.mjs')],
+    testModules: [await import('../template/nutrition.mjs'), await import('../template/i18n.mjs'), await import('../template/menu-photos.mjs')],
     Date: FixedDate, Intl, console, setTimeout, clearTimeout,
     window: { matchMedia: () => ({ matches: false }) },
     document: { title: '', getElementById: (id) => elements[id] || heading, querySelectorAll: () => [],

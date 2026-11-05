@@ -186,6 +186,19 @@ class MenuRegressionTests(unittest.TestCase):
             self.assertEqual(menu._current_date(), "2026-07-02")
 
 
+class ETHPhotoTests(unittest.TestCase):
+    def test_captured_archimedes_keeps_identity_for_late_photo_refresh(self):
+        raw = (FIXTURES / 'eth-archimedes-2026-11-05.json').read_text()
+        with patch.object(menu, 'http_get', return_value=raw), patch.object(menu, '_load_sv_week', return_value=None):
+            dishes = next(m for m in menu.fetch_eth('2026-11-05') if m['id'] == 'eth-8')['meals']['Lunch']
+        self.assertEqual(len(dishes), 4)
+        self.assertEqual(dishes[0]['photoSource'], {
+            'mealTimeId': 21429, 'lineId': 79143, 'mealName': 'Marokkanischer Eintopf',
+            'description': 'Linsen | Auberginen | Zucchetti | Datteln | Mandeln | Sultaninen | Couscous | Erbsen | Röstzwiebeln',
+        })
+        self.assertEqual(dishes[0]['photo'], 'https://idapps.ethz.ch/cookpit-pub-services/v1/images/78432?client-id=ethz-wcms')
+
+
 class ServingNutritionTests(unittest.TestCase):
     def test_only_missing_totals_are_calculated_and_zeros_survive(self):
         total, calculated = menu.complete_serving_nutrition(

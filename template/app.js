@@ -58,6 +58,7 @@ const MEAL_LABELS = { Lunch: 'meal.lunch', Dinner: 'meal.dinner' };
 // availableDates: [ISO...] }. `data.days[state.date].mensas` is the
 // ACTIVE dataset — every render reads from it.
 let data = null;
+let refreshEthPhotos = null; // optional source enrichment; updates state before renderAll
 
 // Selected calendar date (ISO). Starts at Zurich today, changes via
 // the calendar popover. NOT persisted: the menu site is a "today"
@@ -75,7 +76,7 @@ function zurichToday() {
 }
 
 // Precomputed once when data.json loads: every ISO date that carries at
-// least one dish. data.days is immutable after load, so the Set never
+// least one dish. Photo enrichment never changes the roster, so the Set never
 // goes stale — the calendar's per-cell hasData() scans become O(1)
 // lookups (renderCalendar builds ~40 cells, each scanning every mensa).
 let dataDates = new Set();
@@ -226,6 +227,20 @@ async function fetchData() {
     service: { status: 'not_published' },
   }));
   return { date: json.date, days, emptyMensas, availableDates: Array.from(dataDates).sort() };
+}
+
+/** Fill today's late ETH uploads through state and the existing photo pipeline. */
+async function refreshMenuPhotos() {
+  if (!data || !refreshEthPhotos || document.visibilityState === 'hidden') return;
+  const snapshot = data, date = currentDate, mensas = data.days[date];
+  if (!mensas) return;
+  const updates = await refreshEthPhotos(mensas, date);
+  if (data !== snapshot || currentDate !== date || data.days[date] !== mensas) return;
+  let changed = false;
+  for (const {dish, photo} of updates) {
+    if (!dish.photo) { dish.photo = photo; changed = true; }
+  }
+  if (changed && selectedDate === date) renderAll();
 }
 
 /** Guarantee every mensa has id/name/group, Lunch/Dinner arrays and
@@ -2129,6 +2144,10 @@ function bindEvents() {
   document.addEventListener('visibilitychange', refreshCurrentDate);
   // Covers midnight with the tab still visible; focus/pageshow cover sleep/BFCache.
   setInterval(refreshCurrentDate, 60000);
+  window.addEventListener('focus', refreshMenuPhotos);
+  window.addEventListener('pageshow', refreshMenuPhotos);
+  document.addEventListener('visibilitychange', refreshMenuPhotos);
+  setInterval(refreshMenuPhotos, 60000); // source requests are throttled to five minutes
   // The single hamburger both opens AND closes the drawer (it slides to
   // the top-right corner while open, so it stays visible/tappable).
   document.getElementById('menu-btn').addEventListener('click', toggleSelector);
@@ -2767,12 +2786,15 @@ function flashCopied(btn) {
 
 /** Pure modules; a separate function so tests can supply them without a module loader. */
 function loadModules() {
-  return Promise.all([import('./nutrition.mjs?v=VER_PLACEHOLDER'), import('./i18n.mjs?v=VER_PLACEHOLDER')]);
+  return Promise.all([import('./nutrition.mjs?v=VER_PLACEHOLDER'), import('./i18n.mjs?v=VER_PLACEHOLDER'),
+    import('./menu-photos.mjs?v=VER_PLACEHOLDER')]);
 }
 
 /** Preferences and the chosen catalog, loaded alongside data.json. */
 async function loadInterface() {
-  [nutritionCore, i18nCore] = await loadModules();
+  const modules = await loadModules();
+  [nutritionCore, i18nCore] = modules;
+  refreshEthPhotos = modules[2].createEthPhotoRefresher();
   prefs = loadPrefs();
   await loadCatalog(prefs.language).catch(() => loadCatalog(i18nCore.SOURCE_LANGUAGE));
   updateStaticText();
@@ -2791,6 +2813,7 @@ async function init() {
     animEnabled = true; // from here on, user interactions animate
     document.documentElement.classList.add('anim-ready'); // CSS transitions live
     updateSegmented();
+    refreshMenuPhotos(); // progressive enrichment; never delays the silent first paint
     initAccountSync();
   } catch (err) {
     console.error(err);

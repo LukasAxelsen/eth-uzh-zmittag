@@ -1,0 +1,47 @@
+{
+  "meals": [
+    {
+      "line-id": 79143,
+      "meal-time-id": 21429,
+      "line-name": "The Gardener",
+      "meal-name": "Marokkanischer Eintopf",
+      "description": "Linsen | Auberginen | Zucchetti | Datteln | Mandeln | Sultaninen | Couscous | Erbsen | Röstzwiebeln",
+      "image-url": "https://idapps.ethz.ch/cookpit-pub-services/v1/images/78432"
+    },
+    {
+      "line-id": 79144,
+      "meal-time-id": 21429,
+      "line-name": "The Chef",
+      "meal-name": "Poulet Cordon bleu",
+      "description": "Cocktailsauce | Pommes Rissolées | Blattsalat | Mais | Karotten Julienne",
+      "image-url": "https://idapps.ethz.ch/cookpit-pub-services/v1/images/78433"
+    },
+    {
+      "line-id": 79145,
+      "meal-time-id": 21429,
+      "line-name": "The Expert",
+      "meal-name": "Cheddar Burger",
+      "description": "IP-SUISSE Rindsburger | Sesam Bun | Zwiebelmarmelade | Lattich | Cheddar Sauce | Home made Kartoffeln",
+      "image-url": "https://idapps.ethz.ch/cookpit-pub-services/v1/images/78434"
+    },
+    {
+      "line-id": 79146,
+      "meal-time-id": 21429,
+      "line-name": "The Traveller",
+      "meal-name": "Tantanmen Ramen",
+      "description": "Plantbased Hack | Pak choi | Sojasprossen | Ramennudeln | Erdnuss creme | Chili | Sesam",
+      "image-url": "https://idapps.ethz.ch/cookpit-pub-services/v1/images/78435"
+    }
+  ],
+  "meal-times": [
+    {
+      "meal-time-id": 21429,
+      "meal-time-name": "Mittag",
+      "date": "2026-11-05",
+      "time-from": "11:00:00+01:00",
+      "time-to": "14:00:00+01:00",
+      "weekly-rota-id": 3685,
+      "facility-id": 8
+    }
+  ]
+}
