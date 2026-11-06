@@ -498,6 +498,9 @@ check("recommendations sit above content and settings above Appearance",
       'id="recommendations"' in HTML and HTML.index('id="recommendations"') < HTML.index('<main id="content"') and
       'id="recommendations-row"' in HTML and HTML.index('id="recommendations-row"') < HTML.index('data-i18n="settings.appearance"'))
 
+print("== D6. site title stays stable ==")
+check("site title is fixed in markup and never overwritten by a render",
+      '<title>Zmittag</title>' in HTML and not re.search(r'document\.title\s*=', JS))
 print("== E. syntax ==")
 r = subprocess.run(["node", "--check", str(ROOT / "template" / "app.js")],
                    capture_output=True, text=True)

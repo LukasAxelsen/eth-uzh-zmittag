@@ -37,6 +37,8 @@
 - The initial selected date and calendar's today marker use Europe/Zurich
   wall time, independently of the build's `date`. Missing dates keep the
   known mensa roster with empty meals; they never reuse another day's dishes.
+- The browser tab title is always `Zmittag`, including before JavaScript
+  loads. The page heading follows the selected date without changing that title.
 - nutrition keys (fixed set): kcal, protein, fat, saturated, carbs, sugar, salt, fiber, weight
 - Values are NUMBERS (no units). kcal unit=kcal, all others = g. weight only in total.
 - p100 = per-100g values; total = per-serving values. Empty object {} means no data.

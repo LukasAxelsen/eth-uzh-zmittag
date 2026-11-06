@@ -558,10 +558,9 @@ function renderAll() {
   finishDishNavigation();
 }
 
-/** The heading and tab title always describe the selected day's dataset. */
+/** The heading describes the selected day; the site title stays fixed in HTML. */
 function updateDateHeading() {
   document.getElementById('date-heading').textContent = formatDate(selectedDate);
-  document.title = 'Zmittag — ' + selectedDate;
 }
 
 /** Fixed markup text: [data-i18n] leaves and [data-i18n-aria-label|title] attributes.

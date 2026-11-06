@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const path = require('node:path');
 const source = fs.readFileSync(path.join(__dirname, '../template/app.js'), 'utf8')
   .replace(/\ninit\(\);\s*$/, '');
+const pageTitle = fs.readFileSync(path.join(__dirname, '../template/index.html'), 'utf8').match(/<title>(.*?)<\/title>/)[1];
 const catalog = (code) => JSON.parse(fs.readFileSync(path.join(__dirname, `../template/i18n/${code}.json`), 'utf8'));
 
 async function boot(instant, days, stored = { selected: ['uzh-untere-mensa'] }) {
@@ -21,7 +22,7 @@ async function boot(instant, days, stored = { selected: ['uzh-untere-mensa'] }) 
     testModules: [await import('../template/nutrition.mjs'), await import('../template/i18n.mjs'), await import('../template/menu-photos.mjs')],
     Date: FixedDate, Intl, console, setTimeout, clearTimeout,
     window: { matchMedia: () => ({ matches: false }) },
-    document: { title: '', getElementById: (id) => elements[id] || heading, querySelectorAll: () => [],
+    document: { title: pageTitle, getElementById: (id) => elements[id] || heading, querySelectorAll: () => [],
       documentElement: { classList: { add() {} } } },
     fetch: async (url) => ({ ok: true, json: async () => {
       const lang = /^i18n\/([\w-]+)\.json/.exec(url);
@@ -46,6 +47,8 @@ const days = { '2026-10-12': { mensas: [mensa('Yesterday')] }, '2026-10-13': { m
 
 (async () => {
   let app = await boot('2026-10-13T10:00:00Z', days);
+  assert.equal(pageTitle, 'Zmittag', 'the initial HTML title has no build date');
+  assert.equal(app.context.document.title, 'Zmittag', 'boot preserves the site title');
   assert.equal(vm.runInContext('selectedDate', app.context), '2026-10-13');
   assert.match(app.heading.textContent, /13/);
   assert.equal(vm.runInContext('activeMensas()[0].meals.Lunch[0].dish', app.context), 'Today');
@@ -55,6 +58,7 @@ const days = { '2026-10-12': { mensas: [mensa('Yesterday')] }, '2026-10-13': { m
   vm.runInContext('renderAll()', app.context);
   assert.equal(app.gridWrites(), writes, 'ordinary renders preserve calendar nodes');
   vm.runInContext('selectDate("2026-10-12")', app.context);
+  assert.equal(app.context.document.title, 'Zmittag', 'browsing another date preserves the site title');
   assert.match(app.grid.innerHTML, /class="cal-cell selected"[^>]*data-date="2026-10-12"/);
   assert.match(app.grid.innerHTML, /class="cal-cell today"[^>]*data-date="2026-10-13"/);
 
@@ -76,6 +80,7 @@ const days = { '2026-10-12': { mensas: [mensa('Yesterday')] }, '2026-10-13': { m
   app.setTime('2026-10-12T22:01:00Z');
   vm.runInContext('refreshCurrentDate()', app.context);
   assert.equal(vm.runInContext('selectedDate', app.context), '2026-10-13');
+  assert.equal(app.context.document.title, 'Zmittag', 'midnight rollover preserves the site title');
   vm.runInContext('selectDate("2026-10-12")', app.context);
   app.setTime('2026-10-13T22:01:00Z');
   vm.runInContext('refreshCurrentDate()', app.context);
@@ -90,5 +95,6 @@ const days = { '2026-10-12': { mensas: [mensa('Yesterday')] }, '2026-10-13': { m
   assert.equal(app.heading.textContent, 'Dies Martis, 13 Octobris');
   app = await boot('2026-10-13T10:00:00Z', days, { language: 'ja' });
   assert.equal(app.heading.textContent, '10月13日（火曜日）');
-  console.log('PASS: today at boot, missing data, Zurich DST, midnight rollover, localized headings');
+  assert.equal(app.context.document.title, 'Zmittag', 'changing language preserves the site title');
+  console.log('PASS: today at boot, missing data, Zurich DST, midnight rollover, localized headings and stable site title');
 })().catch((err) => { console.error(err); process.exitCode = 1; });
