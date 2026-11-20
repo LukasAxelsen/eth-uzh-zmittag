@@ -64,6 +64,13 @@ SV's current website configuration and standard guest session are discovered
 at build time; session tokens stay in memory. The script waits between requests
 to stay under Food2050's rate limits.
 
+SV configuration discovery accepts static single-quoted, double-quoted and
+backtick strings without executing website JavaScript. Dynamic expressions
+and unexpected API hosts are rejected. Build failures include fixed diagnostic
+codes (for example `configuration-missing` or `guest-signin`), never session
+values. The sanitized November 2026 bundle fixture guards the upstream quote
+format change that previously stopped daily publication.
+
 Published per-serving nutrients take precedence. When a nutrient is missing
 and a positive serving weight is known, the backend calculates
 `total = per100g × servingWeight / 100`, before display rounding. This fallback
@@ -144,6 +151,7 @@ Offline regression checks (no live requests):
 
 ```sh
 python3 scripts/test-menu.py
+python3 scripts/test-sv-menu.py
 python3 scripts/test-hardening.py
 node scripts/test-date.cjs
 node scripts/test-menu-photos.mjs

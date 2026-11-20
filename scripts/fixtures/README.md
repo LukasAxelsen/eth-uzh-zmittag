@@ -26,6 +26,13 @@ These fixtures exercise behavior; they are not a complete live menu snapshot.
   serving despite 120 kcal/100 g; this inconsistency must remain visible in
   the data instead of being overwritten with a calculated 720 kcal.
   Guest sessions, client credentials and tokens are never stored in fixtures.
+- `sv-client-config-2026-11-20.js`: minimized configuration syntax from the
+  public SV bundles `chunk-Cr8urtkv.js` and `chunk-7cBbvpYS.js`, reached from
+  `main-SAHIFB56.js` on November 20. Every identity/credential value is replaced
+  with a fixture value. The new build uses backtick-delimited static strings;
+  the previous double-quote-only reader blocked publication November 17–20.
+  `test-sv-menu.py` replays discovery through guest sign-in and the published
+  document, and covers quote/spacing/path variants and fail-closed behavior.
 - `eth-unpublished.json`: exact empty-object response captured from the
   dated Cookpit endpoint for 2026-10-17. This is unpublished data, not
   confirmation of closure or empty service. Future/weekend dates allow it;

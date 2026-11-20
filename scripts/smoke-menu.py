@@ -6,7 +6,7 @@ import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import menu
-from menu_data import validate_dish
+from menu_data import HEALTHY_STATES, validate_dish
 
 
 def main():
@@ -24,7 +24,10 @@ def main():
                 for slot, dishes in mensa['meals'].items():
                     for i, dish in enumerate(dishes):
                         validate_dish(dish, f'{today}.ETH.{mensa["id"]}.{slot}[{i}]')
-            print(f'{today} ETH: {menu.source_summary(mensas)["status"]}', flush=True)
+            status = menu.source_summary(mensas)['status']
+            print(f'{today} ETH: {status}', flush=True)
+            if status not in HEALTHY_STATES:
+                failures.append(f'{today} ETH: {status}')
         except (menu.SourceError, ValueError) as err:
             failures.append(f'{today} ETH: {err}')
     if args.source in ('UZH', 'both'):

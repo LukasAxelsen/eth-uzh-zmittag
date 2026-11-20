@@ -6,9 +6,45 @@ from the current website bundle; guest credentials stay in memory.
 import json
 import re
 import time
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlsplit
 
 SITE = 'https://sv-gastronomie.ch/'
+
+
+class PublicMenuError(ValueError):
+    """Fixed diagnostic codes safe to pass across the credential boundary."""
+    REASONS = {
+        'configuration-missing': 'public client configuration was not found',
+        'configuration-origin': 'unexpected public client configuration',
+        'guest-session': 'public guest session is unavailable',
+        'guest-signin': 'public guest sign-in failed',
+        'document-response': 'invalid published menu response',
+        'document-record': 'invalid published menu record',
+        'document-identity': 'unexpected published menu document',
+    }
+
+    def __init__(self, reason):
+        super().__init__('SV: ' + self.REASONS[reason])
+        self.reason = reason
+
+
+def configuration_fields(source):
+    """Read static JS string properties without executing the upstream bundle.
+
+    SV's November 2026 build switched from double quotes to template literals.
+    Accept all static quote styles and formatted/quoted property names, but
+    never use interpolation or escaped JS expressions as credentials.
+    """
+    result = {}
+    for key in ('apiKey', 'projectId', 'brand', 'baseUrl', 'authHeader'):
+        pattern = (r'(?<![\w$])(?:' + key + r'|[\'\"]' + key + r'[\'\"])\s*:\s*'
+                   r'(?P<quote>[\'"`])(?P<value>(?:(?!(?P=quote))[^\\\r\n])*)(?P=quote)(?=\s*[,}])')
+        for match in re.finditer(pattern, source):
+            value = match['value']
+            if value and not (match['quote'] == '`' and '${' in value):
+                result[key] = value
+                break
+    return result
 
 
 def decode_value(value):
@@ -41,7 +77,8 @@ class PublicMenus:
     def _configuration(self):
         html = self.get(SITE)
         scripts = re.findall(r'<script\b[^>]*\bsrc=["\']([^"\']+\.js)["\']', html)
-        queue = [urljoin(SITE, s) for s in scripts if s.startswith('main-')]
+        queue = [urljoin(SITE, s) for s in scripts
+                 if urlsplit(s).path.rsplit('/', 1)[-1].startswith('main-')]
         visited, config = set(), {}
         while queue and len(visited) < 80:
             url = queue.pop()
@@ -49,19 +86,16 @@ class PublicMenus:
                 continue
             visited.add(url)
             source = self.get(url)
-            for key in ('apiKey', 'projectId', 'brand', 'baseUrl', 'authHeader'):
-                found = re.search(r'\b' + key + r':"([^"\n]+)"', source)
-                if found:
-                    config[key] = found[1]
+            config.update(configuration_fields(source))
             if all(k in config for k in ('apiKey', 'projectId', 'brand', 'baseUrl', 'authHeader')):
                 if (not re.fullmatch(r'[a-z0-9-]+', config['projectId']) or
                         not re.fullmatch(r'https://apps-[a-z-]+\.qnips\.com/cons/api', config['baseUrl'])):
-                    raise ValueError('SV: unexpected public client configuration')
+                    raise PublicMenuError('configuration-origin')
                 return config
             # Foundation/configuration chunks occur last in Angular imports.
-            queue.extend(urljoin(url, s) for s in re.findall(
-                r'(?:from|import)"(\./[^"/]+\.js)"', source))
-        raise ValueError('SV: public client configuration was not found')
+            queue.extend(urljoin(url, s) for _, s in re.findall(
+                r'''\b(?:from|import)\s*(["'])(\./[^"'/]+\.js)\1''', source))
+        raise PublicMenuError('configuration-missing')
 
     def _session(self):
         if self.token and time.monotonic() < self.expires:
@@ -75,13 +109,13 @@ class PublicMenus:
             'Response-Version': 'v3', 'Accept-Language': 'de-CH',
         }))
         if not isinstance(guest, dict) or guest.get('Environment') != 'Release' or not guest.get('CustomToken'):
-            raise ValueError('SV: public guest session is unavailable')
+            raise PublicMenuError('guest-session')
         session = self.post(
             'https://identitytoolkit.googleapis.com/v1/accounts:signInWithCustomToken?key=' + cfg['apiKey'],
             json.dumps({'token': guest['CustomToken'], 'returnSecureToken': True}),
         )
         if not isinstance(session, dict) or not session.get('idToken'):
-            raise ValueError('SV: public guest sign-in failed')
+            raise PublicMenuError('guest-signin')
         self.token = session['idToken']
         self.expires = time.monotonic() + min(float(session.get('expiresIn', 3600)), 3600) - 60
 
@@ -95,13 +129,13 @@ class PublicMenus:
                              json.dumps({'documents': [path]}),
                              headers={'Authorization': 'Bearer ' + self.token})
         if not isinstance(response, list) or len(response) != 1:
-            raise ValueError('SV: invalid published menu response')
+            raise PublicMenuError('document-response')
         record = response[0]
         if not isinstance(record, dict):
-            raise ValueError('SV: invalid published menu record')
+            raise PublicMenuError('document-record')
         if record.get('missing') == path:
             return None
         found = record.get('found', {})
         if not isinstance(found, dict) or found.get('name') != path or not isinstance(found.get('fields'), dict):
-            raise ValueError('SV: unexpected published menu document')
+            raise PublicMenuError('document-identity')
         return {k: decode_value(v) for k, v in found['fields'].items()}

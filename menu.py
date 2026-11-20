@@ -21,7 +21,7 @@ import tempfile
 import time
 import unicodedata
 from urllib.parse import quote
-from sv_menu import PublicMenus
+from sv_menu import PublicMenuError, PublicMenus
 from menu_data import validate_payload, validate_closures, validate_day, iso_date
 from datetime import timedelta, datetime
 from zoneinfo import ZoneInfo
@@ -610,7 +610,8 @@ def _load_sv_week(menu_id, year, week):
         except (SourceError, ValueError, TypeError, KeyError) as err:
             # Do not emit session values or credential-bearing URLs in logs.
             status = err.status if isinstance(err, SourceError) else 'parse_failed'
-            _sv_week_cache[key] = SourceError(status, 'sv-menu', f'SV menu {menu_id}, {year}-W{week}: public menu unavailable ({status})')
+            reason = f'; reason={err.reason}' if isinstance(err, PublicMenuError) else ''
+            _sv_week_cache[key] = SourceError(status, 'sv-menu', f'SV menu {menu_id}, {year}-W{week}: public menu unavailable ({status}{reason})')
     value = _sv_week_cache[key]
     if isinstance(value, SourceError):
         raise value

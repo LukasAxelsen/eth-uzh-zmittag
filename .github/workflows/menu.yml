@@ -30,6 +30,7 @@ jobs:
       - name: Verify scraper, date selection, animation and translation contracts
         run: |
           python3 scripts/test-menu.py
+          python3 scripts/test-sv-menu.py
           python3 scripts/test-hardening.py
           node scripts/test-date.cjs
           node scripts/test-menu-photos.mjs
